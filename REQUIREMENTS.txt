@@ -1,0 +1,80 @@
+Edit products
+Delete or deactivate products
+Search products by name, barcode, category, supplier
+Track quantity in stock
+Set minimum stock level
+Show “low stock” products
+Record stock-in events
+Record stock-out/sale events
+Keep a stock movement history
+
+
+GUI SCREEN
+
+Dashboard
+Total products
+Low stock count
+Recent stock movements
+Products page
+Product table
+Search bar
+Add/Edit/Delete buttons
+Add/Edit product form
+Name
+Barcode
+Category
+Supplier
+Prices
+Quantity
+Minimum quantity
+Stock movement page
+Select product
+Movement type: IN / OUT / ADJUSTMENT
+Quantity
+Reason
+Reports page
+Low stock report
+Inventory value
+Movement history
+
+
+Database schema
+C++ classes: Product, Supplier, Category, StockMovement
+Repository/database layer
+Console version first
+Add Qt GUI after the logic works
+Add reports
+Polish README and screenshots
+
+
+
+Architecture
+src/
+  main.cpp
+  models/
+    Product.h
+    Supplier.h
+    Category.h
+    StockMovement.h
+  database/
+    DatabaseManager.h
+    ProductRepository.h
+    StockMovementRepository.h
+  services/
+    InventoryService.h
+  ui/
+    MainWindow.h
+    ProductForm.h
+
+
+Validate stock rules
+Add product CRUD
+Basic menu app
+error handling
+input validation
+split into layers database/inventoryservice/ui
+
+donfigurable database connection
+gui as a final layer Qt
+refactor database -> repository layer ( clean architecture)
+I can show you how to make your app auto-create the database/tables so anyone can run it instantly (very strong portfolio feature)

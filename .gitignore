@@ -1,0 +1,21 @@
+# Executables
+*.exe
+*.out
+*.app
+
+# Object / build files
+*.o
+*.obj
+*.so
+*.dll
+*.lib
+
+# Logs
+*.log
+
+# VS Code settings (user-specific)
+.vscode/
+
+# Build folders (future-proof)
+build/
+bin/
