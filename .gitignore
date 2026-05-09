@@ -13,9 +13,14 @@
 # Logs
 *.log
 
+# Text
+*.txt
+
 # VS Code settings (user-specific)
 .vscode/
 
 # Build folders (future-proof)
 build/
 bin/
+
+OLD_NOT_NEEDED/

@@ -10,6 +10,7 @@ std::wstring toString(MovementReason reason);
 MovementType toMovementType(const std::wstring& str);
 MovementReason toMovementReason(const std::wstring& str);
 std::string toString(Unit unit);
-
+std::wstring productStatusToWString(ProductStatus status);
+ProductStatus productStatusFromString(const std::string& status);
 
 #endif

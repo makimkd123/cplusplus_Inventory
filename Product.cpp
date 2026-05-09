@@ -17,7 +17,8 @@ Product::Product()
       name(""),
       barcode(""),
       supplierId(0),
-      internalCode(0)
+      internalCode(0),
+      status(ProductStatus::ACTIVE)
 {
 }
 
@@ -106,14 +107,87 @@ void Product::setSellingPrice(double price) {
     sellingPrice = price;
 }
 
-bool Product::isLowStock() const {
-    return quantity <= minQuantity;
-}
-
 void Product::setMinimumQuantity(double amount) {
     if(amount < 0.0) {
         throw std::invalid_argument("Minimum Quantity cannot be negative");
     }
 
     minQuantity = amount;
+}
+
+int Product::getId() const {
+    return id;
+}
+
+std::string Product::getCategory() const {
+    return category;
+}
+
+std::string Product::getSubCategory() const {
+    return subCategory;
+}
+
+int Product::getSupplierId() const {
+    return supplierId;
+}
+
+int Product::getInternalCode() const {
+    return internalCode;
+}
+
+double Product::getMinimumQuantity() const {
+    return minQuantity;
+}
+
+double Product::getTax() const {
+    return tax;
+}
+
+void Product::setId(int id) {
+    this->id = id;
+}
+
+void Product::setCategory(const std::string& category) {
+    this->category = category;
+}
+
+void Product::setSubCategory(const std::string& subCategory) {
+    this->subCategory = subCategory;
+}
+
+void Product::setSupplierId(int supplierId) {
+    this->supplierId = supplierId;
+}
+
+void Product::setInternalCode(int internalCode) {
+    this->internalCode = internalCode;
+}
+
+void Product::setTax(double tax) {
+    this->tax = tax;
+}
+
+void Product::setQuantity(double quantity) {
+    this->quantity = quantity;
+}
+
+ProductStatus Product::getStatus() const {
+    return status;
+}
+
+void Product::setStatus(ProductStatus status) {
+    this->status = status;
+}
+
+bool Product::canStockIn() const {
+    return status == ProductStatus::ACTIVE;
+}
+
+bool Product::canStockOut() const {
+    return status == ProductStatus::ACTIVE ||
+           status == ProductStatus::INACTIVE;
+}
+
+bool Product::isLowStock() const {
+    return quantity <= minQuantity;
 }

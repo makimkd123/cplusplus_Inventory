@@ -1,14 +1,3 @@
-Edit products
-Delete or deactivate products
-Search products by name, barcode, category, supplier
-Track quantity in stock
-Set minimum stock level
-Show “low stock” products
-Record stock-in events
-Record stock-out/sale events
-Keep a stock movement history
-
-
 GUI SCREEN
 
 Dashboard
@@ -37,44 +26,36 @@ Low stock report
 Inventory value
 Movement history
 
-
 Database schema
 C++ classes: Product, Supplier, Category, StockMovement
-Repository/database layer
-Console version first
 Add Qt GUI after the logic works
 Add reports
 Polish README and screenshots
 
-
+make category a class or a table
 
 Architecture
 src/
-  main.cpp
-  models/
-    Product.h
-    Supplier.h
-    Category.h
-    StockMovement.h
-  database/
-    DatabaseManager.h
-    ProductRepository.h
-    StockMovementRepository.h
-  services/
-    InventoryService.h
   ui/
     MainWindow.h
     ProductForm.h
 
-
-Validate stock rules
-Add product CRUD
 Basic menu app
 error handling
 input validation
-split into layers database/inventoryservice/ui
 
-donfigurable database connection
+configurable database connection
 gui as a final layer Qt
-refactor database -> repository layer ( clean architecture)
 I can show you how to make your app auto-create the database/tables so anyone can run it instantly (very strong portfolio feature)
+
+If it does NOT exist:
+
+query succeeds
+but updates 0 rows
+
+Right now your code does not check whether:
+
+the ID exists
+rows were actually modified
+
+So eventually you should add safeguards like:

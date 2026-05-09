@@ -40,3 +40,16 @@ std::string toString(Unit unit) {
         default: return "UNKNOWN";
     }
 }
+
+std::wstring productStatusToWString(ProductStatus status) {
+    switch (status) {
+        case ProductStatus::ACTIVE:
+            return L"ACTIVE";
+        case ProductStatus::BLOCKED:
+            return L"BLOCKED";
+        case ProductStatus::INACTIVE:
+            return L"INACTIVE";
+        default:
+            return L"ACTIVE";
+    }
+}
