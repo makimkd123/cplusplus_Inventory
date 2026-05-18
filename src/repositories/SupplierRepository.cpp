@@ -8,7 +8,7 @@ SupplierRepository::SupplierRepository(Database& database)
     : database(database)
 {
 }
-void SupplierRepository::insertSupplier(const Supplier& supplier) {
+bool SupplierRepository::insertSupplier(const Supplier& supplier) {
     SQLHSTMT stmt;
 
     SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
@@ -97,21 +97,24 @@ void SupplierRepository::insertSupplier(const Supplier& supplier) {
 
     SQLRETURN ret = SQLExecute(stmt);
 
-    if (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO) {
-        std::cout << "Supplier added successfully.\n";
-    } else {
-        std::cout << "Failed to insert supplier.\n";
-    }
-
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+
+    return SQL_SUCCEEDED(ret);
 }
 
-void SupplierRepository::printAllSuppliers() {
+std::vector<Supplier> SupplierRepository::getAllSuppliers() {
+    std::vector<Supplier> suppliers;
+
     SQLHSTMT stmt;
-    SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
+
+    SQLAllocHandle(
+        SQL_HANDLE_STMT,
+        database.getConnection(),
+        &stmt
+    );
 
     SQLWCHAR query[] =
-        L"SELECT SupplierID, Name, ContactName, Phone, Email, IsActive "
+        L"SELECT SupplierID, Name, ContactName, Phone, Email, Address, IsActive "
         L"FROM Suppliers "
         L"ORDER BY Name;";
 
@@ -119,48 +122,71 @@ void SupplierRepository::printAllSuppliers() {
 
     SQLRETURN ret = SQLExecute(stmt);
 
-    if (ret != SQL_SUCCESS && ret != SQL_SUCCESS_WITH_INFO) {
-        std::cout << "Failed to retrieve suppliers.\n";
+    if (!SQL_SUCCEEDED(ret)) {
         SQLFreeHandle(SQL_HANDLE_STMT, stmt);
-        return;
+        return suppliers;
     }
 
     SQLINTEGER supplierId;
+
     SQLWCHAR nameBuffer[100];
     SQLWCHAR contactBuffer[100];
     SQLWCHAR phoneBuffer[50];
     SQLWCHAR emailBuffer[100];
+    SQLWCHAR addressBuffer[255];
+
     SQLCHAR isActive;
 
-    bool found = false;
-
-    std::wcout << L"\nID | Name | Contact | Phone | Email | Active\n";
-    std::wcout << L"------------------------------------------------------------\n";
-
     while (SQLFetch(stmt) == SQL_SUCCESS) {
-        found = true;
 
-        SQLGetData(stmt, 1, SQL_C_SLONG, &supplierId, 0, nullptr);
-        SQLGetData(stmt, 2, SQL_C_WCHAR, nameBuffer, sizeof(nameBuffer), nullptr);
-        SQLGetData(stmt, 3, SQL_C_WCHAR, contactBuffer, sizeof(contactBuffer), nullptr);
-        SQLGetData(stmt, 4, SQL_C_WCHAR, phoneBuffer, sizeof(phoneBuffer), nullptr);
-        SQLGetData(stmt, 5, SQL_C_WCHAR, emailBuffer, sizeof(emailBuffer), nullptr);
-        SQLGetData(stmt, 6, SQL_C_BIT, &isActive, 0, nullptr);
+        SQLGetData(stmt, 1, SQL_C_SLONG,
+                   &supplierId, 0, nullptr);
 
-        std::wcout << supplierId << L" | "
-                   << nameBuffer << L" | "
-                   << contactBuffer << L" | "
-                   << phoneBuffer << L" | "
-                   << emailBuffer << L" | "
-                   << (isActive ? L"YES" : L"NO")
-                   << std::endl;
-    }
+        SQLGetData(stmt, 2, SQL_C_WCHAR,
+                   nameBuffer, sizeof(nameBuffer), nullptr);
 
-    if (!found) {
-        std::cout << "No suppliers found.\n";
+        SQLGetData(stmt, 3, SQL_C_WCHAR,
+                   contactBuffer, sizeof(contactBuffer), nullptr);
+
+        SQLGetData(stmt, 4, SQL_C_WCHAR,
+                   phoneBuffer, sizeof(phoneBuffer), nullptr);
+
+        SQLGetData(stmt, 5, SQL_C_WCHAR,
+                   emailBuffer, sizeof(emailBuffer), nullptr);
+
+        SQLGetData(stmt, 6, SQL_C_WCHAR,
+                   addressBuffer, sizeof(addressBuffer), nullptr);
+
+        SQLGetData(stmt, 7, SQL_C_BIT,
+                   &isActive, 0, nullptr);
+
+        Supplier supplier(
+            supplierId,
+
+            std::string(nameBuffer,
+                        nameBuffer + wcslen(nameBuffer)),
+
+            std::string(contactBuffer,
+                        contactBuffer + wcslen(contactBuffer)),
+
+            std::string(phoneBuffer,
+                        phoneBuffer + wcslen(phoneBuffer)),
+
+            std::string(emailBuffer,
+                        emailBuffer + wcslen(emailBuffer)),
+
+            std::string(addressBuffer,
+                        addressBuffer + wcslen(addressBuffer)),
+
+            isActive != 0
+        );
+
+        suppliers.push_back(supplier);
     }
 
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+
+    return suppliers;
 }
 
 
@@ -233,7 +259,7 @@ bool SupplierRepository::getSupplierActiveStatus(
 
     return false;
 }
-void SupplierRepository::deactivateSupplier(int supplierId){
+bool SupplierRepository::deactivateSupplier(int supplierId){
     SQLHSTMT stmt;
 
     SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
@@ -252,19 +278,17 @@ void SupplierRepository::deactivateSupplier(int supplierId){
     
     SQLRETURN ret = SQLExecute(stmt);
 
-    if (ret != SQL_SUCCESS && ret != SQL_SUCCESS_WITH_INFO) {
-        std::cout << "Failed to deactivate supplier.\n";
-    }
-
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
 
-};
+    return SQL_SUCCEEDED(ret);
 
+}
 
-void SupplierRepository::searchSupplier(const std::string& keyword){
+std::vector<Supplier> SupplierRepository::searchSuppliers(const std::string& keyword) {
+    std::vector<Supplier> suppliers;
+
     SQLHSTMT stmt;
     SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
-
 
     SQLWCHAR query[] =
         L"SELECT SupplierID, Name, ContactName, Phone, Email, Address, IsActive "
@@ -291,108 +315,117 @@ void SupplierRepository::searchSupplier(const std::string& keyword){
 
     SQLPrepareW(stmt, query, SQL_NTS);
 
-    std::wstring wKeyWord(keyword.begin(), keyword.end());
-    std::wstring likeKeyword = L"%" + wKeyWord + L"%";
-    SQLLEN ind = SQL_NTS;
+    std::wstring wKeyword(keyword.begin(), keyword.end());
+    std::wstring likeKeyword = L"%" + wKeyword + L"%";
 
-    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)wKeyWord.c_str(), 0, &ind);
+    SQLLEN ind1 = SQL_NTS;
+    SQLLEN ind2 = SQL_NTS;
+    SQLLEN ind3 = SQL_NTS;
+    SQLLEN ind4 = SQL_NTS;
+    SQLLEN ind5 = SQL_NTS;
+    SQLLEN ind6 = SQL_NTS;
+    SQLLEN ind7 = SQL_NTS;
+    SQLLEN ind8 = SQL_NTS;
+    SQLLEN ind9 = SQL_NTS;
+    SQLLEN ind10 = SQL_NTS;
+    SQLLEN ind11 = SQL_NTS;
+    SQLLEN ind12 = SQL_NTS;
+    SQLLEN ind13 = SQL_NTS;
+    SQLLEN ind14 = SQL_NTS;
+    SQLLEN ind15 = SQL_NTS;
+    SQLLEN ind16 = SQL_NTS;
 
-    SQLBindParameter(stmt, 2, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)likeKeyword.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind1);
 
-    SQLBindParameter(stmt, 3, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)wKeyWord.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 2, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind2);
 
-    SQLBindParameter(stmt, 4, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)likeKeyword.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 3, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind3);
 
-    SQLBindParameter(stmt, 5, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)wKeyWord.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 4, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind4);
 
-    SQLBindParameter(stmt, 6, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)likeKeyword.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 5, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind5);
 
-    SQLBindParameter(stmt, 7, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)wKeyWord.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 6, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind6);
 
-    SQLBindParameter(stmt, 8, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)likeKeyword.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 7, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind7);
 
-    SQLBindParameter(stmt, 9, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)wKeyWord.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 8, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind8);
 
-    SQLBindParameter(stmt, 10, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)likeKeyword.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 9, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind9);
 
-    SQLBindParameter(stmt, 11, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)wKeyWord.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 10, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind10);
 
-    SQLBindParameter(stmt, 12, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)likeKeyword.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 11, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind11);
 
-    SQLBindParameter(stmt, 13, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)wKeyWord.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 12, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind12);
 
-    SQLBindParameter(stmt, 14, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)likeKeyword.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 13, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind13);
 
-    SQLBindParameter(stmt, 15, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)wKeyWord.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 14, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind14);
 
-    SQLBindParameter(stmt, 16, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR, 100, 0,
-                     (SQLPOINTER)likeKeyword.c_str(), 0, &ind);
+    SQLBindParameter(stmt, 15, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind15);
+
+    SQLBindParameter(stmt, 16, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind16);
 
     SQLRETURN ret = SQLExecute(stmt);
 
-    if (ret != SQL_SUCCESS && ret != SQL_SUCCESS_WITH_INFO){
-        std::cout <<"Search query failed.\n";
+    if (!SQL_SUCCEEDED(ret)) {
         SQLFreeHandle(SQL_HANDLE_STMT, stmt);
-        return;
+        return suppliers;
     }
 
     SQLINTEGER id;
     SQLWCHAR nameBuffer[100];
-    SQLWCHAR ContactNameBuffer[100];
-    SQLWCHAR PhoneBuffer[50];
-    SQLWCHAR EmailBuffer[100];
-    SQLWCHAR AddressBuffer[255];
-    SQLCHAR IsActiveBuffer;
-    bool found = false;
+    SQLWCHAR contactNameBuffer[100];
+    SQLWCHAR phoneBuffer[50];
+    SQLWCHAR emailBuffer[100];
+    SQLWCHAR addressBuffer[255];
+    SQLCHAR isActiveBuffer;
 
-
-    std::wcout << L"\nID | Name | ContactName | Phone | Email | Address | Status\n";
-    std::wcout<< L"-------------------------------------------------------------\n";
-
-    while (SQLFetch(stmt) == SQL_SUCCESS){
-        found = true;
-
+    while (SQLFetch(stmt) == SQL_SUCCESS) {
         SQLGetData(stmt, 1, SQL_C_SLONG, &id, 0, NULL);
         SQLGetData(stmt, 2, SQL_C_WCHAR, nameBuffer, sizeof(nameBuffer), NULL);
-        SQLGetData(stmt, 3, SQL_C_WCHAR, ContactNameBuffer, sizeof(ContactNameBuffer), NULL);
-        SQLGetData(stmt, 4, SQL_C_WCHAR, PhoneBuffer, sizeof(PhoneBuffer), NULL);
-        SQLGetData(stmt, 5, SQL_C_WCHAR, EmailBuffer, sizeof(EmailBuffer), NULL);
-        SQLGetData(stmt, 6, SQL_C_WCHAR, AddressBuffer, sizeof(AddressBuffer), NULL);
-        SQLGetData(stmt, 7, SQL_C_BIT, &IsActiveBuffer, 0, NULL);
+        SQLGetData(stmt, 3, SQL_C_WCHAR, contactNameBuffer, sizeof(contactNameBuffer), NULL);
+        SQLGetData(stmt, 4, SQL_C_WCHAR, phoneBuffer, sizeof(phoneBuffer), NULL);
+        SQLGetData(stmt, 5, SQL_C_WCHAR, emailBuffer, sizeof(emailBuffer), NULL);
+        SQLGetData(stmt, 6, SQL_C_WCHAR, addressBuffer, sizeof(addressBuffer), NULL);
+        SQLGetData(stmt, 7, SQL_C_BIT, &isActiveBuffer, 0, NULL);
 
-        std::wcout << id << L" | "
-                   << nameBuffer << L" | "
-                   << ContactNameBuffer << L" | "
-                   << PhoneBuffer << L" | "
-                   << EmailBuffer << L" | "                                      
-                   << AddressBuffer << L" | "
-                   << (IsActiveBuffer ? L"ACTIVE" : L"INACTIVE") << std::endl;
+        Supplier supplier(
+            id,
+            std::string(nameBuffer, nameBuffer + wcslen(nameBuffer)),
+            std::string(contactNameBuffer, contactNameBuffer + wcslen(contactNameBuffer)),
+            std::string(phoneBuffer, phoneBuffer + wcslen(phoneBuffer)),
+            std::string(emailBuffer, emailBuffer + wcslen(emailBuffer)),
+            std::string(addressBuffer, addressBuffer + wcslen(addressBuffer)),
+            isActiveBuffer != 0
+        );
+
+        suppliers.push_back(supplier);
     }
 
-    if (!found) {
-            std::cout << "No supplier found.\n";
-    };
-    
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
 
-};
+    return suppliers;
+}
 
-void SupplierRepository::updateSupplier(const Supplier& supplier) {
+bool SupplierRepository::updateSupplier(const Supplier& supplier) {
     SQLHSTMT stmt;
     SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
 
@@ -450,11 +483,46 @@ void SupplierRepository::updateSupplier(const Supplier& supplier) {
 
     SQLRETURN ret = SQLExecute(stmt);
 
-    if (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO) {
-        std::cout << "Supplier updated successfully.\n";
-    } else {
-        std::cout << "Failed to update supplier.\n";
+    SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+
+    return SQL_SUCCEEDED(ret);
+}
+
+bool SupplierRepository::supplierExists(int supplierId) {
+    SQLHSTMT stmt;
+    SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
+
+    SQLWCHAR query[] =
+        L"SELECT 1 FROM Suppliers WHERE SupplierId = ?;";
+
+    SQLPrepareW(stmt, query, SQL_NTS);
+
+    SQLLEN idInd = 0;
+
+    SQLBindParameter(stmt,
+                     1,
+                     SQL_PARAM_INPUT,
+                     SQL_C_SLONG,
+                     SQL_INTEGER,
+                     0,
+                     0,
+                     &supplierId,
+                     0,
+                     &idInd);
+
+    SQLRETURN ret = SQLExecute(stmt);
+
+    if (ret != SQL_SUCCESS && ret != SQL_SUCCESS_WITH_INFO) {
+        SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+        return false;
     }
 
+    ret = SQLFetch(stmt);
+
+    bool exists =
+        (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO);
+
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+
+    return exists;
 }

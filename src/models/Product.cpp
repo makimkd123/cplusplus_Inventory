@@ -6,8 +6,8 @@ Product::Product()
       quantity(0.0),
       minQuantity(0.0),
       unit(Unit::PIECES),
-      category(""),
-      subCategory(""),
+      primaryCategoryId(0),
+      subCategoryId(0),
       buyingPrice(0.0),
       sellingPrice(0.0),
       tax(0.0),
@@ -119,12 +119,12 @@ int Product::getId() const {
     return id;
 }
 
-std::string Product::getCategory() const {
-    return category;
+int Product::getCategory() const {
+    return primaryCategoryId;
 }
 
-std::string Product::getSubCategory() const {
-    return subCategory;
+int Product::getSubCategory() const {
+    return subCategoryId;
 }
 
 int Product::getSupplierId() const {
@@ -143,16 +143,30 @@ double Product::getTax() const {
     return tax;
 }
 
+int Product::getHeight() const {
+    return height;
+}
+
+int Product::getWidth() const{
+    return width;
+}
+
+int Product::getDepth() const{
+    return depth;
+}
+
+
+
 void Product::setId(int id) {
     this->id = id;
 }
 
-void Product::setCategory(const std::string& category) {
-    this->category = category;
+void Product::setCategory(int category) {
+    primaryCategoryId = category;
 }
 
-void Product::setSubCategory(const std::string& subCategory) {
-    this->subCategory = subCategory;
+void Product::setSubCategory(int subCategory) {
+    subCategoryId = subCategory;
 }
 
 void Product::setSupplierId(int supplierId) {
@@ -161,10 +175,6 @@ void Product::setSupplierId(int supplierId) {
 
 void Product::setInternalCode(int internalCode) {
     this->internalCode = internalCode;
-}
-
-void Product::setTax(double tax) {
-    this->tax = tax;
 }
 
 void Product::setQuantity(double quantity) {
@@ -190,4 +200,47 @@ bool Product::canStockOut() const {
 
 bool Product::isLowStock() const {
     return quantity <= minQuantity;
+}
+
+void Product::setTax(double value) {
+    if (value < 0.0) {
+        throw std::invalid_argument("Tax cannot be negative");
+    }
+
+    tax = value;
+}
+
+void Product::setHeight(double value) {
+    if (value < 0.0) {
+        throw std::invalid_argument("Height cannot be negative");
+    }
+
+    height = value;
+}
+
+void Product::setWidth(double value) {
+    if (value < 0.0) {
+        throw std::invalid_argument("Width cannot be negative");
+    }
+
+    width = value;
+}
+
+void Product::setDepth(double value) {
+    if (value < 0.0) {
+        throw std::invalid_argument("Depth cannot be negative");
+    }
+
+    depth = value;
+}
+void Product::setName(const std::string& name) {
+    this->name = name;
+}
+
+void Product::setBarcode(const std::string& barcode) {
+    this->barcode = barcode;
+}
+
+void Product::setUnit(Unit unit) {
+    this->unit = unit;
 }

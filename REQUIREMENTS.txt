@@ -1,38 +1,9 @@
 GUI SCREEN
 
-Dashboard
-Total products
-Low stock count
-Recent stock movements
-Products page
-Product table
-Search bar
-Add/Edit/Delete buttons
-Add/Edit product form
-Name
-Barcode
-Category
-Supplier
-Prices
-Quantity
-Minimum quantity
-Stock movement page
-Select product
-Movement type: IN / OUT / ADJUSTMENT
-Quantity
-Reason
-Reports page
-Low stock report
-Inventory value
-Movement history
-
 Database schema
-C++ classes: Product, Supplier, Category, StockMovement
 Add Qt GUI after the logic works
 Add reports
 Polish README and screenshots
-
-make category a class or a table
 
 Architecture
 src/
@@ -44,18 +15,173 @@ Basic menu app
 error handling
 input validation
 
-configurable database connection
-gui as a final layer Qt
 I can show you how to make your app auto-create the database/tables so anyone can run it instantly (very strong portfolio feature)
 
-If it does NOT exist:
 
-query succeeds
-but updates 0 rows
+I’ll review the structure across models, repositories, services, and the CLI entry point, then judge how ready it is for a Qt GUI layer and what should be fixed first.
 
-Right now your code does not check whether:
+Thought for 27s
 
-the ID exists
-rows were actually modified
+Your project is holding up well for a learning-stage C++ inventory system. You have a recognizable layered design:
 
-So eventually you should add safeguards like:
+Models → Repositories → Services → CLI
+
+That is a good foundation for adding Qt. But before GUI, I would fix one architectural issue:
+
+Your service layer still prints to std::cout.
+For Qt, services should return data/status, not display anything. Otherwise your GUI will be forced to depend on console behavior.
+
+Current grade
+
+Architecture: 7/10
+C++ quality: 6.5/10
+Database/repository layer: 6.5/10
+Qt readiness: 5.5/10 now, could become 8/10 after refactor
+
+Strong parts
+
+You already separated repositories from services, which is exactly what you need before adding Qt.
+
+Your repositories use prepared statements in many places, so you are mostly avoiding SQL injection.
+
+Your domain rules are starting to exist in the service/model layer: stock movement validation, blocked products, inactive suppliers/categories, minimum quantity, etc.
+
+Using std::optional for “not found” results is good.
+
+Main problems to fix before Qt
+1. Services should not print
+
+Example problem:
+
+void InventoryService::searchProducts(...)
+
+prints directly. For Qt, this should become:
+
+std::vector<Product> InventoryService::searchProducts(const std::string& keyword);
+
+Then the Qt layer decides how to display it.
+
+Same for:
+
+showProductDetails
+showStockMovements
+showSuppliers
+showCategories
+showLowStockProducts
+
+These should return data, not print.
+
+2. Stock movement update is not transactional
+
+Currently you update product quantity first, then insert movement:
+
+updateProductQuantity(...)
+insertStockMovement(...)
+
+If quantity update succeeds but movement insert fails, your database becomes inconsistent.
+
+Before GUI, add a transaction around stock operations:
+
+BEGIN TRANSACTION
+update quantity
+insert movement
+COMMIT
+
+or rollback on failure.
+
+This is probably your most important data-integrity issue.
+
+3. Repository resource handling is repetitive
+
+You manually call:
+
+SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+
+everywhere. That is easy to forget when exceptions happen.
+
+Later, make a small RAII wrapper:
+
+class Statement {
+    SQLHSTMT stmt;
+public:
+    ~Statement() { SQLFreeHandle(SQL_HANDLE_STMT, stmt); }
+};
+
+Not urgent, but valuable.
+
+4. Some model types are inconsistent
+
+In Product.h:
+
+double height;
+double width;
+double depth;
+
+but getters return int:
+
+int getHeight() const;
+int getWidth() const;
+int getDepth() const;
+
+These should return double.
+
+5. Validation is duplicated
+
+addProduct and editProduct repeat almost the same validation logic. Extract it:
+
+void validateProductData(...);
+
+That will make Qt integration much easier because validation errors can be returned consistently.
+
+Best next step before Qt
+
+Refactor the service layer into GUI-friendly methods.
+
+Instead of:
+
+void showSuppliers();
+
+use:
+
+std::vector<Supplier> getSuppliers();
+
+Instead of:
+
+void addProduct(...);
+
+use either:
+
+bool addProduct(...);
+
+or better:
+
+ServiceResult addProduct(...);
+
+Example:
+
+struct ServiceResult {
+    bool success;
+    std::string message;
+};
+
+Then Qt can show message in a QMessageBox.
+
+Suggested Qt structure
+
+Add Qt as a separate layer, not mixed into existing classes:
+
+models/
+repositories/
+services/
+gui/
+    MainWindow
+    ProductPage
+    SupplierPage
+    CategoryPage
+    ReportsPage
+
+Your Qt widgets should call InventoryService and ReportService, but your services should not include Qt headers.
+
+Verdict
+
+You are in a good position. The project is not “messy”; it has a real structure. But do not add Qt directly on top of the current std::cout service methods. First refactor services to return data/results. Then Qt becomes mostly a presentation layer instead of a rewrite.

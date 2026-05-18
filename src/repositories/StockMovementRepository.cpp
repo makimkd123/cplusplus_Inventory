@@ -1,11 +1,12 @@
 #include <iostream>
 #include "StockMovementRepository.h"
-#include "Utils.h"
+#include "utils/Utils.h"
+#include <vector>
 
 StockMovementRepository::StockMovementRepository(Database& database)
     : database(database) {}
 
-void StockMovementRepository::insertStockMovement(int productId,
+bool StockMovementRepository::insertStockMovement(int productId,
                                                   MovementType type,
                                                   MovementReason reason,
                                                   double amount) {
@@ -38,23 +39,49 @@ void StockMovementRepository::insertStockMovement(int productId,
 
     SQLRETURN ret = SQLExecute(stmt);
 
-    if (ret != SQL_SUCCESS && ret != SQL_SUCCESS_WITH_INFO) {
-        std::cout << "Failed to insert stock movement.\n";
-    }
-
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+
+    return SQL_SUCCEEDED(ret);
 }
 
-void StockMovementRepository::printStockMovements(const std::wstring& query) {
-    SQLHSTMT stmt;
-    SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
+std::vector<StockMovement>
+StockMovementRepository::getMovementsByProductId(int productId) {
 
-    SQLRETURN ret = SQLExecDirectW(stmt, (SQLWCHAR*)query.c_str(), SQL_NTS);
+    std::vector<StockMovement> movements;
 
-    if (ret != SQL_SUCCESS && ret != SQL_SUCCESS_WITH_INFO) {
-        std::cout << "Query failed.\n";
+    SQLHSTMT stmt = NULL;
+
+    SQLAllocHandle(
+        SQL_HANDLE_STMT,
+        database.getConnection(),
+        &stmt
+    );
+
+    SQLWCHAR query[] =
+        L"SELECT MovementType, Reason, Amount "
+        L"FROM StockMovements "
+        L"WHERE ProductID = ?;";
+
+    SQLPrepareW(stmt, query, SQL_NTS);
+
+    SQLBindParameter(
+        stmt,
+        1,
+        SQL_PARAM_INPUT,
+        SQL_C_LONG,
+        SQL_INTEGER,
+        0,
+        0,
+        &productId,
+        0,
+        NULL
+    );
+
+    SQLRETURN ret = SQLExecute(stmt);
+
+    if (!SQL_SUCCEEDED(ret)) {
         SQLFreeHandle(SQL_HANDLE_STMT, stmt);
-        return;
+        return movements;
     }
 
     SQLWCHAR movementTypeBuffer[50];
@@ -62,24 +89,44 @@ void StockMovementRepository::printStockMovements(const std::wstring& query) {
     double amount;
 
     while (SQLFetch(stmt) == SQL_SUCCESS) {
-        SQLGetData(stmt, 1, SQL_C_WCHAR, movementTypeBuffer, sizeof(movementTypeBuffer), NULL);
-        SQLGetData(stmt, 2, SQL_C_WCHAR, reasonBuffer, sizeof(reasonBuffer), NULL);
-        SQLGetData(stmt, 3, SQL_C_DOUBLE, &amount, 0, NULL);
 
-        MovementType type = toMovementType(std::wstring(movementTypeBuffer));
-        MovementReason reason = toMovementReason(std::wstring(reasonBuffer));
+        SQLGetData(
+            stmt,
+            1,
+            SQL_C_WCHAR,
+            movementTypeBuffer,
+            sizeof(movementTypeBuffer),
+            NULL
+        );
 
-        std::wcout << toString(type) << L" | "
-                   << toString(reason) << L" | "
-                   << amount << std::endl;
+        SQLGetData(
+            stmt,
+            2,
+            SQL_C_WCHAR,
+            reasonBuffer,
+            sizeof(reasonBuffer),
+            NULL
+        );
+
+        SQLGetData(
+            stmt,
+            3,
+            SQL_C_DOUBLE,
+            &amount,
+            0,
+            NULL
+        );
+
+        StockMovement movement(
+            amount,
+            toMovementType(movementTypeBuffer),
+            toMovementReason(reasonBuffer)
+        );
+
+        movements.push_back(movement);
     }
 
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
-}
-void StockMovementRepository::printMovementsByProductId(int productId) {
-    std::wstring query =
-        L"SELECT MovementType, Reason, Amount "
-        L"FROM StockMovements WHERE ProductID = " + std::to_wstring(productId) + L";";
 
-    database.executeStockMovementQuery(query);
+    return movements;
 }

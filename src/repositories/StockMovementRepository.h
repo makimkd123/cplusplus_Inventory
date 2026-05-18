@@ -2,8 +2,10 @@
 #define STOCK_MOVEMENT_REPOSITORY_H
 
 #include <string>
-#include "Database.h"
-#include "StockMovement.h"
+#include <vector>
+#include "database/Database.h"
+#include "models/StockMovement.h"
+
 
 class StockMovementRepository {
 private:
@@ -12,13 +14,12 @@ private:
 public:
     explicit StockMovementRepository(Database& database);
 
-    void insertStockMovement(int productId,
+    bool insertStockMovement(int productId,
                              MovementType type,
                              MovementReason reason,
                              double amount);
 
-    void printStockMovements(const std::wstring& query);
-    void printMovementsByProductId(int productId);
+    std::vector<StockMovement> getMovementsByProductId(int productId);
 };
 
 #endif

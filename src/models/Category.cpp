@@ -1,11 +1,11 @@
 #include "Category.h"
 
 Category::Category()
-    : categoryId(0), name(L""), description(L""), isActive(true) {}
+    : categoryId(0), name(""), description(""), isActive(true) {}
 
 Category::Category(int categoryId,
-                   const std::wstring& name,
-                   const std::wstring& description,
+                   const std::string& name,
+                   const std::string& description,
                    bool isActive)
     : categoryId(categoryId),
       name(name),
@@ -16,11 +16,11 @@ int Category::getCategoryId() const {
     return categoryId;
 }
 
-std::wstring Category::getName() const {
+std::string Category::getName() const {
     return name;
 }
 
-std::wstring Category::getDescription() const {
+std::string Category::getDescription() const {
     return description;
 }
 
@@ -32,11 +32,11 @@ void Category::setCategoryId(int categoryId) {
     this->categoryId = categoryId;
 }
 
-void Category::setName(const std::wstring& name) {
+void Category::setName(const std::string& name) {
     this->name = name;
 }
 
-void Category::setDescription(const std::wstring& description) {
+void Category::setDescription(const std::string& description) {
     this->description = description;
 }
 

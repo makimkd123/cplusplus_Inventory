@@ -23,11 +23,16 @@ class Product {
 private:
     int id;
 
+    std::string name;
+    std::string barcode;
+
     double quantity;
     double minQuantity;
     Unit unit;
-    std::string category;
-    std::string subCategory;
+
+    int primaryCategoryId;
+    int subCategoryId;
+    int supplierId;
 
     double buyingPrice;
     double sellingPrice;
@@ -37,13 +42,10 @@ private:
     double width;
     double depth;
 
-    std::string name;
-    std::string barcode;
-    int supplierId;
     int internalCode;
     ProductStatus status;
-    std::vector<StockMovement> movements;
 
+    std::vector<StockMovement> movements;
 public:
     Product();
     Product(const std::string& name,
@@ -59,11 +61,14 @@ public:
     double getSellingPrice() const;
     double getMinimumQuantity() const;
     double getTax() const;
-    std::string getCategory() const;
-    std::string getSubCategory() const;
+    int getCategory() const;
+    int getSubCategory() const;
     int getSupplierId() const;
     int getInternalCode() const;
     ProductStatus getStatus() const;
+    int getHeight() const;
+    int getWidth() const;
+    int getDepth() const;
 
     const std::vector<StockMovement>& getMovements() const;
 
@@ -74,12 +79,16 @@ public:
     void setMinimumQuantity(double amount);
     void setUnit(Unit unit);
     void setTax(double tax);
-    void setCategory(const std::string& category);
-    void setSubCategory(const std::string& subCategory);
+    void setHeight(double value);
+    void setWidth(double value);
+    void setDepth(double value);
+    void setCategory(int category);
+    void setSubCategory(int subCategory);
     void setSupplierId(int supplierId);
     void setInternalCode(int internalCode);
     void setStatus(ProductStatus status);
-
+    void setName(const std::string& name);
+    void setBarcode(const std::string& barcode);
 
     void addStock(double amount);
     void removeStock(double amount);

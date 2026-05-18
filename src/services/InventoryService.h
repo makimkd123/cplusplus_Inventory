@@ -2,15 +2,15 @@
 #define INVENTORY_SERVICE_H
 
 #include <string>
-#include "Database.h"
-#include "Product.h"
-#include "StockMovement.h"
-#include "Supplier.h"
-#include "ProductRepository.h"
-#include "StockMovementRepository.h"
-#include "SupplierRepository.h"
-#include "CategoryRepository.h"
-#include "Category.h"
+#include "database/Database.h"
+#include "models/Product.h"
+#include "models/StockMovement.h"
+#include "models/Supplier.h"
+#include "repositories/ProductRepository.h"
+#include "repositories/StockMovementRepository.h"
+#include "repositories/SupplierRepository.h"
+#include "repositories/CategoryRepository.h"
+#include "models/Category.h"
 
 class InventoryService {
 private:
@@ -22,7 +22,6 @@ private:
 public:
     explicit InventoryService(Database& database);
 
-    void showProducts();
     void showProductDetails(int productId);
     void showStockMovements(int productId);
 
@@ -38,10 +37,15 @@ public:
         const std::string& barcode,
         Unit unit,
         double buyingPrice,
-        double sellingPrice
+        double sellingPrice,
+        double tax,
+        double height,
+        double width,
+        double depth,
+        int primaryCategoryId,
+        int supplierId,
+        int subCategoryId
     );
-
-    void searchProducts(const std::string& keyword);
 
     void editProduct(
         int productId,
@@ -49,8 +53,17 @@ public:
         const std::string& barcode,
         Unit unit,
         double buyingPrice,
-        double sellingPrice
+        double sellingPrice,
+        double tax,
+        double height,
+        double width,
+        double depth,
+        int primaryCategoryId,
+        int supplierId,
+        int subCategoryId
     );
+
+    void searchProducts(const std::string& keyword);
 
     void showLowStockProducts();
     void updateMinimumQuantity(int productId, double minimumQuantity);
@@ -73,14 +86,14 @@ public:
     void showCategories();
 
     void addCategory(
-        const std::wstring& name,
-        const std::wstring& description
+        const std::string& name,
+        const std::string& description
     );
 
     void updateCategory(
         int categoryId,
-        const std::wstring& name,
-        const std::wstring& description,
+        const std::string& name,
+        const std::string& description,
         bool isActive
     );
 

@@ -7,7 +7,7 @@ CategoryRepository::CategoryRepository(Database& db)
 {}
 
 
-void CategoryRepository::addCategory(const Category& category) {
+bool CategoryRepository::addCategory(const Category& category) {
     SQLHSTMT stmt;
     SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
 
@@ -18,8 +18,10 @@ void CategoryRepository::addCategory(const Category& category) {
 
     SQLPrepareW(stmt, query, SQL_NTS);
 
-    std::wstring wName = category.getName();
-    std::wstring wDescription = category.getDescription();
+    std::string nameStr = category.getName();
+    std::string descStr = category.getDescription();
+    std::wstring wName(nameStr.begin(), nameStr.end());
+    std::wstring wDescription(descStr.begin(), descStr.end());
 
     SQLCHAR isActive = category.getIsActive() ? 1 : 0;
 
@@ -27,53 +29,31 @@ void CategoryRepository::addCategory(const Category& category) {
     SQLLEN descriptionInd = SQL_NTS;
     SQLLEN activeInd = 0;
 
-    SQLBindParameter(
-        stmt, 1,
-        SQL_PARAM_INPUT,
-        SQL_C_WCHAR,
-        SQL_WVARCHAR,
-        100, 0,
-        (SQLPOINTER)wName.c_str(),
-        0,
-        &nameInd
-    );
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wName.c_str(), 0, &nameInd);
 
-    SQLBindParameter(
-        stmt, 2,
-        SQL_PARAM_INPUT,
-        SQL_C_WCHAR,
-        SQL_WVARCHAR,
-        255, 0,
-        (SQLPOINTER)wDescription.c_str(),
-        0,
-        &descriptionInd
-    );
+    SQLBindParameter(stmt, 2, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     255, 0, (SQLPOINTER)wDescription.c_str(), 0, &descriptionInd);
 
-    SQLBindParameter(
-        stmt, 3,
-        SQL_PARAM_INPUT,
-        SQL_C_BIT,
-        SQL_BIT,
-        0, 0,
-        &isActive,
-        0,
-        &activeInd
-    );
+    SQLBindParameter(stmt, 3, SQL_PARAM_INPUT, SQL_C_BIT, SQL_BIT,
+                     0, 0, &isActive, 0, &activeInd);
 
     SQLRETURN ret = SQLExecute(stmt);
 
-    if (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO) {
-        std::cout << "Category added successfully.\n";
-    } else {
-        std::cout << "Failed to insert category.\n";
-    }
-
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+
+    return SQL_SUCCEEDED(ret);
 }
 
-Category CategoryRepository::getCategoryById(int categoryId) {
+std::optional<Category>
+CategoryRepository::getCategoryById(int categoryId) {
     SQLHSTMT stmt;
-    SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
+
+    SQLAllocHandle(
+        SQL_HANDLE_STMT,
+        database.getConnection(),
+        &stmt
+    );
 
     SQLWCHAR query[] =
         L"SELECT CategoryId, Name, Description, IsActive "
@@ -85,11 +65,13 @@ Category CategoryRepository::getCategoryById(int categoryId) {
     SQLLEN idInd = 0;
 
     SQLBindParameter(
-        stmt, 1,
+        stmt,
+        1,
         SQL_PARAM_INPUT,
         SQL_C_LONG,
         SQL_INTEGER,
-        0, 0,
+        0,
+        0,
         &categoryId,
         0,
         &idInd
@@ -97,10 +79,9 @@ Category CategoryRepository::getCategoryById(int categoryId) {
 
     SQLRETURN ret = SQLExecute(stmt);
 
-    if (!(ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO)) {
+    if (!SQL_SUCCEEDED(ret)) {
         SQLFreeHandle(SQL_HANDLE_STMT, stmt);
-        std::cout << "Failed to get category.\n";
-        return Category();
+        return std::nullopt;
     }
 
     int id;
@@ -120,21 +101,21 @@ Category CategoryRepository::getCategoryById(int categoryId) {
 
     ret = SQLFetch(stmt);
 
-    if (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO) {
-        Category category(
-            id,
-            std::wstring(name),
-            std::wstring(description),
-            isActive == 1
-        );
-
+    if (!SQL_SUCCEEDED(ret)) {
         SQLFreeHandle(SQL_HANDLE_STMT, stmt);
-        return category;
+        return std::nullopt;
     }
 
+    Category category(
+        id,
+        std::string(name, name + wcslen(name)),
+        std::string(description, description + wcslen(description)),
+        isActive == 1
+    );
+
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
-    std::cout << "Category not found.\n";
-    return Category();
+
+    return category;
 }
 
 std::vector<Category> CategoryRepository::getAllCategories() {
@@ -152,7 +133,6 @@ std::vector<Category> CategoryRepository::getAllCategories() {
 
     if (!(ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO)) {
         SQLFreeHandle(SQL_HANDLE_STMT, stmt);
-        std::cout << "Failed to get categories.\n";
         return categories;
     }
 
@@ -174,8 +154,8 @@ std::vector<Category> CategoryRepository::getAllCategories() {
     while ((ret = SQLFetch(stmt)) == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO) {
         categories.emplace_back(
             id,
-            std::wstring(name),
-            std::wstring(description),
+            std::string(name, name + wcslen(name)),
+            std::string(description, description + wcslen(description)),
             isActive == 1
         );
     }
@@ -184,7 +164,7 @@ std::vector<Category> CategoryRepository::getAllCategories() {
     return categories;
 }
 
-void CategoryRepository::updateCategory(const Category& category) {
+bool CategoryRepository::updateCategory(const Category& category) {
     SQLHSTMT stmt;
     SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
 
@@ -195,8 +175,11 @@ void CategoryRepository::updateCategory(const Category& category) {
 
     SQLPrepareW(stmt, query, SQL_NTS);
 
-    std::wstring name = category.getName();
-    std::wstring description = category.getDescription();
+    std::string nameStr = category.getName();
+    std::string descStr = category.getDescription();
+    std::wstring name(nameStr.begin(), nameStr.end());
+    std::wstring description(descStr.begin(), descStr.end());
+
     SQLCHAR isActive = category.getIsActive() ? 1 : 0;
     int categoryId = category.getCategoryId();
 
@@ -219,16 +202,12 @@ void CategoryRepository::updateCategory(const Category& category) {
 
     SQLRETURN ret = SQLExecute(stmt);
 
-    if (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO) {
-        std::cout << "Category updated successfully.\n";
-    } else {
-        std::cout << "Failed to update category.\n";
-    }
-
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+
+    return SQL_SUCCEEDED(ret);
 }
 
-void CategoryRepository::deactivateCategory(int categoryId) {
+bool CategoryRepository::deactivateCategory(int categoryId) {
     SQLHSTMT stmt;
     SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
 
@@ -246,11 +225,83 @@ void CategoryRepository::deactivateCategory(int categoryId) {
 
     SQLRETURN ret = SQLExecute(stmt);
 
-    if (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO) {
-        std::cout << "Category deactivated successfully.\n";
-    } else {
-        std::cout << "Failed to deactivate category.\n";
+    SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+
+    return SQL_SUCCEEDED(ret);
+}
+
+bool CategoryRepository::categoryExists(int categoryId) {
+    SQLHSTMT stmt;
+    SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
+
+    SQLWCHAR query[] =
+        L"SELECT 1 FROM Categories WHERE CategoryId = ?;";
+
+    SQLPrepareW(stmt, query, SQL_NTS);
+
+    SQLLEN idInd = 0;
+
+    SQLBindParameter(stmt,
+                     1,
+                     SQL_PARAM_INPUT,
+                     SQL_C_SLONG,
+                     SQL_INTEGER,
+                     0,
+                     0,
+                     &categoryId,
+                     0,
+                     &idInd);
+
+    SQLRETURN ret = SQLExecute(stmt);
+
+    if (ret != SQL_SUCCESS && ret != SQL_SUCCESS_WITH_INFO) {
+        SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+        return false;
+    }
+
+    ret = SQLFetch(stmt);
+
+    bool exists =
+        (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO);
+
+    SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+
+    return exists;
+}
+
+bool CategoryRepository::getCategoryActiveStatus(int categoryId, bool& isActive) {
+    SQLHSTMT stmt;
+    SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
+
+    SQLWCHAR query[] =
+        L"SELECT IsActive "
+        L"FROM Categories "
+        L"WHERE CategoryId = ?;";
+
+    SQLPrepareW(stmt, query, SQL_NTS);
+
+    SQLLEN idInd = 0;
+
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_SLONG, SQL_INTEGER,
+                     0, 0, &categoryId, 0, &idInd);
+
+    SQLRETURN ret = SQLExecute(stmt);
+
+    if (ret != SQL_SUCCESS && ret != SQL_SUCCESS_WITH_INFO) {
+        SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+        return false;
+    }
+
+    SQLCHAR activeValue;
+
+    if (SQLFetch(stmt) == SQL_SUCCESS) {
+        SQLGetData(stmt, 1, SQL_C_BIT, &activeValue, 0, nullptr);
+        isActive = activeValue;
+
+        SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+        return true;
     }
 
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+    return false;
 }
