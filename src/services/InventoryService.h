@@ -1,19 +1,24 @@
 #ifndef INVENTORY_SERVICE_H
 #define INVENTORY_SERVICE_H
 
+#include <optional>
 #include <string>
+#include <vector>
+
 #include "database/Database.h"
 #include "models/Product.h"
 #include "models/StockMovement.h"
 #include "models/Supplier.h"
+#include "models/Category.h"
 #include "repositories/ProductRepository.h"
 #include "repositories/StockMovementRepository.h"
 #include "repositories/SupplierRepository.h"
 #include "repositories/CategoryRepository.h"
-#include "models/Category.h"
+#include "ServiceResult.h"
 
 class InventoryService {
 private:
+    Database& database;
     ProductRepository productRepository;
     StockMovementRepository stockMovementRepository;
     SupplierRepository supplierRepository;
@@ -22,17 +27,17 @@ private:
 public:
     explicit InventoryService(Database& database);
 
-    void showProductDetails(int productId);
-    void showStockMovements(int productId);
+    std::optional<Product> getProductDetails(int productId);
+    std::vector<StockMovement> getStockMovements(int productId);
 
-    void addStockMovement(
+    ServiceResult addStockMovement(
         int productId,
         MovementType type,
         MovementReason reason,
         double amount
     );
 
-    void addProduct(
+    ServiceResult addProduct(
         const std::string& name,
         const std::string& barcode,
         Unit unit,
@@ -47,7 +52,7 @@ public:
         int subCategoryId
     );
 
-    void editProduct(
+    ServiceResult editProduct(
         int productId,
         const std::string& name,
         const std::string& barcode,
@@ -63,15 +68,15 @@ public:
         int subCategoryId
     );
 
-    void searchProducts(const std::string& keyword);
+    std::vector<Product> searchProducts(const std::string& keyword);
+    std::vector<Product> getLowStockProducts();
 
-    void showLowStockProducts();
-    void updateMinimumQuantity(int productId, double minimumQuantity);
-    void changeProductStatus(int productId, ProductStatus status);
+    ServiceResult updateMinimumQuantity(int productId, double minimumQuantity);
+    ServiceResult changeProductStatus(int productId, ProductStatus status);
 
-    void showSuppliers();
+    std::vector<Supplier> getSuppliers();
 
-    void addSupplier(
+    ServiceResult addSupplier(
         const std::string& name,
         const std::string& contactName,
         const std::string& phone,
@@ -79,27 +84,27 @@ public:
         const std::string& address
     );
 
-    void searchSuppliers(const std::string& keyword);
+    std::vector<Supplier> searchSuppliers(const std::string& keyword);
 
-    void deactivateSupplier(int supplierId);
+    ServiceResult deactivateSupplier(int supplierId);
 
-    void showCategories();
+    std::vector<Category> getCategories();
 
-    void addCategory(
+    ServiceResult addCategory(
         const std::string& name,
         const std::string& description
     );
 
-    void updateCategory(
+    ServiceResult updateCategory(
         int categoryId,
         const std::string& name,
         const std::string& description,
         bool isActive
     );
 
-    void deactivateCategory(int categoryId);
-    
-    void updateSupplier(
+    ServiceResult deactivateCategory(int categoryId);
+
+    ServiceResult updateSupplier(
         int supplierId,
         const std::string& name,
         const std::string& contactName,
@@ -108,7 +113,6 @@ public:
         const std::string& address,
         bool isActive
     );
-
 };
 
 #endif

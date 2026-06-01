@@ -1,18 +1,17 @@
 #include "InventoryService.h"
-#include "utils/utils.h"
-#include <iostream>
+
 #include <exception>
 
-
 InventoryService::InventoryService(Database& database)
-    : productRepository(database),
+    : database(database),
+      productRepository(database),
       stockMovementRepository(database),
       supplierRepository(database),
       categoryRepository(database)
 {
 }
 
-bool isValidMovementCombination(
+static bool isValidMovementCombination(
     MovementType type,
     MovementReason reason
 ) {
@@ -34,157 +33,102 @@ bool isValidMovementCombination(
     return false;
 }
 
-void InventoryService::showProductDetails(int productId) {
-    std::optional<Product> product = productRepository.getProductById(productId);
-
-    if (!product.has_value()) {
-        std::cout << "Product not found.\n";
-        return;
-    }
-
-    Product p = product.value();
-
-    std::cout << "\nProduct Details\n";
-    std::cout << "-------------------------\n";
-    std::cout << "ID: " << p.getId() << '\n';
-    std::cout << "Name: " << p.getName() << '\n';
-    std::cout << "Barcode: " << p.getBarcode() << '\n';
-    std::cout << "Quantity: " << p.getQuantity() << '\n';
+std::optional<Product> InventoryService::getProductDetails(int productId) {
+    return productRepository.getProductById(productId);
 }
 
-void InventoryService::showStockMovements(int productId) {
-
-    std::vector<StockMovement> movements =
-        stockMovementRepository.getMovementsByProductId(productId);
-
-    if (movements.empty()) {
-        std::cout << "No stock movements found.\n";
-        return;
-    }
-
-    for (const StockMovement& movement : movements) {
-
-        std::cout
-            << "Type: "
-            << toStringNarrow(movement.getType())
-
-            << " | Reason: "
-            << toStringNarrow(movement.getReason())
-
-            << " | Amount: "
-            << movement.getAmount()
-
-            << std::endl;
-    }
+std::vector<StockMovement> InventoryService::getStockMovements(int productId) {
+    return stockMovementRepository.getMovementsByProductId(productId);
 }
 
-void InventoryService::addStockMovement(
+ServiceResult InventoryService::addStockMovement(
     int productId,
     MovementType type,
     MovementReason reason,
     double amount
 ) {
-    if (!productRepository.productExists(productId)) {
-        std::cout << "Product does not exist.\n";
-        return;
+    try {
+        if (!productRepository.productExists(productId)) {
+            return ServiceResult::Failure("Product does not exist.");
+        }
+
+        if (amount <= 0) {
+            return ServiceResult::Failure("Amount must be greater than 0.");
+        }
+
+        if (!isValidMovementCombination(type, reason)) {
+            return ServiceResult::Failure("Invalid reason for selected movement type.");
+        }
+
+        auto quantity = productRepository.getProductQuantity(productId);
+
+        if (!quantity.has_value()) {
+            return ServiceResult::Failure("Could not retrieve product quantity.");
+        }
+
+        auto status = productRepository.getProductStatus(productId);
+
+        if (!status.has_value()) {
+            return ServiceResult::Failure("Could not retrieve product status.");
+        }
+
+        if (*status == ProductStatus::BLOCKED) {
+            return ServiceResult::Failure("Cannot modify stock for blocked product.");
+        }
+
+        if (type == MovementType::STOCK_OUT && amount > *quantity) {
+            return ServiceResult::Failure("Not enough stock available.");
+        }
+
+        double quantityChange = 0;
+
+        if (type == MovementType::STOCK_IN) {
+            quantityChange = amount;
+        }
+        else if (type == MovementType::STOCK_OUT) {
+            quantityChange = -amount;
+        }
+        else if (type == MovementType::ADJUSTMENT) {
+            quantityChange = amount;
+        }
+
+        database.beginTransaction();
+
+        bool quantityUpdated =
+            productRepository.updateProductQuantity(productId, quantityChange);
+
+        if (!quantityUpdated) {
+            database.rollbackTransaction();
+            return ServiceResult::Failure("Failed to update product quantity.");
+        }
+
+        bool movementInserted =
+            stockMovementRepository.insertStockMovement(
+                productId,
+                type,
+                reason,
+                amount
+            );
+
+        if (!movementInserted) {
+            database.rollbackTransaction();
+            return ServiceResult::Failure("Failed to insert stock movement.");
+        }
+
+        database.commitTransaction();
+
+        return ServiceResult::Success("Stock movement added successfully.");
     }
+    catch (const std::exception& e) {
+        database.rollbackTransaction();
 
-    if (amount <= 0) {
-        std::cout << "Amount must be greater than 0.\n";
-        return;
-    }
-
-    if (!isValidMovementCombination(type, reason)) {
-        std::cout << "Invalid reason for selected movement type.\n";
-        return;
-    }
-
-    auto quantity = productRepository.getProductQuantity(productId);
-
-    if (!quantity.has_value()) {
-        std::cout << "Could not retrieve product quantity.\n";
-        return;
-    }
-
-    double currentQuantity = *quantity;
-
-    auto status = productRepository.getProductStatus(productId);
-
-    if (!status.has_value()) {
-        std::cout << "Could not retrieve product status.\n";
-        return;
-    }
-
-    if (*status == ProductStatus::BLOCKED) {
-        std::cout << "Cannot modify stock for blocked product.\n";
-        return;
-    }
-
-    if (type == MovementType::STOCK_IN &&
-        *status != ProductStatus::ACTIVE) {
-        std::cout << "Only ACTIVE products can receive stock.\n";
-        return;
-    }
-
-    if (type == MovementType::STOCK_OUT &&
-        *status != ProductStatus::ACTIVE &&
-        *status != ProductStatus::INACTIVE) {
-        std::cout << "Only ACTIVE or INACTIVE products can have stock removed.\n";
-        return;
-    }
-
-    if (type == MovementType::ADJUSTMENT &&
-        *status != ProductStatus::ACTIVE) {
-        std::cout << "Only ACTIVE products can be adjusted.\n";
-        return;
-    }
-
-    if (type == MovementType::STOCK_OUT &&
-        amount > currentQuantity) {
-        std::cout << "Not enough stock available.\n";
-        return;
-    }
-
-    double quantityChange = 0;
-
-    if (type == MovementType::STOCK_IN) {
-        quantityChange = amount;
-    }
-    else if (type == MovementType::STOCK_OUT) {
-        quantityChange = -amount;
-    }
-    else if (type == MovementType::ADJUSTMENT) {
-        quantityChange = amount;
-    }
-
-    bool quantityUpdated =
-        productRepository.updateProductQuantity(
-            productId,
-            quantityChange
+        return ServiceResult::Failure(
+            std::string("Failed to add stock movement: ") + e.what()
         );
-
-    if (!quantityUpdated) {
-        std::cout << "Failed to update product quantity.\n";
-        return;
     }
-
-    bool movementInserted =
-        stockMovementRepository.insertStockMovement(
-            productId,
-            type,
-            reason,
-            amount
-        );
-
-    if (!movementInserted) {
-        std::cout << "Failed to insert stock movement.\n";
-        return;
-    }
-
-    std::cout << "Stock movement added successfully.\n";
 }
 
-void InventoryService::addProduct(
+ServiceResult InventoryService::addProduct(
     const std::string& name,
     const std::string& barcode,
     Unit unit,
@@ -212,51 +156,51 @@ void InventoryService::addProduct(
         product.setSubCategory(subCategoryId);
 
         if (productRepository.barcodeExists(barcode)) {
-            throw std::invalid_argument("Barcode already exists");
+            return ServiceResult::Failure("Barcode already exists.");
         }
 
         if (!categoryRepository.categoryExists(primaryCategoryId)) {
-            throw std::invalid_argument("Primary category does not exist");
+            return ServiceResult::Failure("Primary category does not exist.");
         }
 
         if (!supplierRepository.supplierExists(supplierId)) {
-            throw std::invalid_argument("Supplier does not exist");
+            return ServiceResult::Failure("Supplier does not exist.");
         }
 
         bool supplierIsActive;
 
         if (!supplierRepository.getSupplierActiveStatus(supplierId, supplierIsActive)) {
-            throw std::invalid_argument("Supplier does not exist");
+            return ServiceResult::Failure("Supplier does not exist.");
         }
 
         if (!supplierIsActive) {
-            throw std::invalid_argument("Cannot add product with inactive supplier");
+            return ServiceResult::Failure("Cannot add product with inactive supplier.");
         }
 
         bool primaryCategoryIsActive;
 
         if (!categoryRepository.getCategoryActiveStatus(primaryCategoryId, primaryCategoryIsActive)) {
-            throw std::invalid_argument("Primary category does not exist");
+            return ServiceResult::Failure("Primary category does not exist.");
         }
 
         if (!primaryCategoryIsActive) {
-            throw std::invalid_argument("Cannot add product with inactive primary category");
+            return ServiceResult::Failure("Cannot add product with inactive primary category.");
         }
 
         if (subCategoryId != -1) {
+            if (!categoryRepository.categoryExists(subCategoryId)) {
+                return ServiceResult::Failure("Subcategory does not exist.");
+            }
+
             bool subCategoryIsActive;
 
             if (!categoryRepository.getCategoryActiveStatus(subCategoryId, subCategoryIsActive)) {
-                throw std::invalid_argument("Subcategory does not exist");
+                return ServiceResult::Failure("Subcategory does not exist.");
             }
 
             if (!subCategoryIsActive) {
-                throw std::invalid_argument("Cannot add product with inactive subcategory");
+                return ServiceResult::Failure("Cannot add product with inactive subcategory.");
             }
-        }
-
-        if (subCategoryId != -1 && !categoryRepository.categoryExists(subCategoryId)) {
-            throw std::invalid_argument("Subcategory does not exist");
         }
 
         productRepository.insertProduct(
@@ -274,14 +218,16 @@ void InventoryService::addProduct(
             product.getSubCategory()
         );
 
-        std::cout << "Product added successfully.\n";
+        return ServiceResult::Success("Product added successfully.");
     }
     catch (const std::exception& e) {
-        std::cout << "Failed to add product: " << e.what() << std::endl;
+        return ServiceResult::Failure(
+            std::string("Failed to add product: ") + e.what()
+        );
     }
 }
 
-void InventoryService::editProduct(
+ServiceResult InventoryService::editProduct(
     int productId,
     const std::string& name,
     const std::string& barcode,
@@ -298,7 +244,7 @@ void InventoryService::editProduct(
 ) {
     try {
         if (!productRepository.productExists(productId)) {
-            throw std::invalid_argument("Product does not exist");
+            return ServiceResult::Failure("Product does not exist.");
         }
 
         Product product(name, barcode, unit);
@@ -314,48 +260,47 @@ void InventoryService::editProduct(
         product.setSubCategory(subCategoryId);
 
         if (!categoryRepository.categoryExists(primaryCategoryId)) {
-            throw std::invalid_argument("Primary category does not exist");
+            return ServiceResult::Failure("Primary category does not exist.");
         }
 
         if (!supplierRepository.supplierExists(supplierId)) {
-            throw std::invalid_argument("Supplier does not exist");
+            return ServiceResult::Failure("Supplier does not exist.");
         }
 
         bool supplierIsActive;
 
         if (!supplierRepository.getSupplierActiveStatus(supplierId, supplierIsActive)) {
-            throw std::invalid_argument("Supplier does not exist");
+            return ServiceResult::Failure("Supplier does not exist.");
         }
 
         if (!supplierIsActive) {
-            throw std::invalid_argument("Cannot add product with inactive supplier");
+            return ServiceResult::Failure("Cannot update product with inactive supplier.");
         }
 
         bool primaryCategoryIsActive;
 
         if (!categoryRepository.getCategoryActiveStatus(primaryCategoryId, primaryCategoryIsActive)) {
-            throw std::invalid_argument("Primary category does not exist");
+            return ServiceResult::Failure("Primary category does not exist.");
         }
 
         if (!primaryCategoryIsActive) {
-            throw std::invalid_argument("Cannot add product with inactive primary category");
+            return ServiceResult::Failure("Cannot update product with inactive primary category.");
         }
 
         if (subCategoryId != -1) {
+            if (!categoryRepository.categoryExists(subCategoryId)) {
+                return ServiceResult::Failure("Subcategory does not exist.");
+            }
+
             bool subCategoryIsActive;
 
             if (!categoryRepository.getCategoryActiveStatus(subCategoryId, subCategoryIsActive)) {
-                throw std::invalid_argument("Subcategory does not exist");
+                return ServiceResult::Failure("Subcategory does not exist.");
             }
 
             if (!subCategoryIsActive) {
-                throw std::invalid_argument("Cannot add product with inactive subcategory");
+                return ServiceResult::Failure("Cannot update product with inactive subcategory.");
             }
-        }
-
-
-        if (subCategoryId != -1 && !categoryRepository.categoryExists(subCategoryId)) {
-            throw std::invalid_argument("Subcategory does not exist");
         }
 
         productRepository.updateProduct(
@@ -374,74 +319,41 @@ void InventoryService::editProduct(
             product.getSubCategory()
         );
 
-        std::cout << "Product updated successfully.\n";
+        return ServiceResult::Success("Product updated successfully.");
     }
     catch (const std::exception& e) {
-        std::cout << "Failed to update product: " << e.what() << std::endl;
+        return ServiceResult::Failure(
+            std::string("Failed to update product: ") + e.what()
+        );
     }
 }
 
-void InventoryService::searchProducts(const std::string& keyword) {
-    std::vector<Product> products = productRepository.searchProduct(keyword);
-
-    if (products.empty()) {
-        std::cout << "No products found.\n";
-        return;
-    }
-
-    for (const Product& product : products) {
-        std::cout << "ID: " << product.getId() << '\n';
-        std::cout << "Name: " << product.getName() << '\n';
-        std::cout << "Barcode: " << product.getBarcode() << '\n';
-        std::cout << "Quantity: " << product.getQuantity() << '\n';
-        std::cout << "-------------------------\n";
-    }
+std::vector<Product> InventoryService::searchProducts(const std::string& keyword) {
+    return productRepository.searchProduct(keyword);
 }
 
+std::vector<Product> InventoryService::getLowStockProducts() {
+    return productRepository.getLowStockProducts();
+}
 
-void InventoryService::updateMinimumQuantity(int productId,double minimumQuantity){
-    bool success = productRepository.updateMinimumQuantity(productId,minimumQuantity);
+ServiceResult InventoryService::updateMinimumQuantity(
+    int productId,
+    double minimumQuantity
+) {
+    bool success =
+        productRepository.updateMinimumQuantity(
+            productId,
+            minimumQuantity
+        );
 
     if (!success) {
-        std::cout << "Failed to update minimum quantity.\n";
-        return;
+        return ServiceResult::Failure("Failed to update minimum quantity.");
     }
-    std::cout << "Minimum quantity updated successfully.\n";
+
+    return ServiceResult::Success("Minimum quantity updated successfully.");
 }
 
-void InventoryService::showLowStockProducts() {
-
-    std::vector<Product> products =
-        productRepository.getLowStockProducts();
-
-    if (products.empty()) {
-        std::cout << "No low stock products found.\n";
-        return;
-    }
-
-    std::cout << "\nLow Stock Products\n";
-    std::cout << "----------------------------------------\n";
-
-    for (const Product& product : products) {
-
-        std::cout << "ID: " << product.getId() << '\n';
-
-        std::cout << "Name: "
-                  << product.getName() << '\n';
-
-        std::cout << "Barcode: "
-                  << product.getBarcode() << '\n';
-
-        std::cout << "Quantity: "
-                  << product.getQuantity() << '\n';
-
-        std::cout << "Minimum Quantity: "
-                  << product.getMinimumQuantity() << '\n';
-
-        std::cout << "----------------------------------------\n";
-    }
-}
-void InventoryService::changeProductStatus(
+ServiceResult InventoryService::changeProductStatus(
     int productId,
     ProductStatus status
 ) {
@@ -452,39 +364,17 @@ void InventoryService::changeProductStatus(
         );
 
     if (!success) {
-        std::cout << "Failed to update product status.\n";
-        return;
+        return ServiceResult::Failure("Failed to update product status.");
     }
 
-    std::cout << "Product status updated successfully.\n";
+    return ServiceResult::Success("Product status updated successfully.");
 }
 
-void InventoryService::showSuppliers() {
-
-    std::vector<Supplier> suppliers =
-        supplierRepository.getAllSuppliers();
-
-    if (suppliers.empty()) {
-        std::cout << "No suppliers found.\n";
-        return;
-    }
-
-    std::cout << "\nID | Name | Contact | Phone | Email | Active\n";
-    std::cout << "------------------------------------------------------------\n";
-
-    for (const Supplier& supplier : suppliers) {
-
-        std::cout << supplier.getId() << " | "
-                  << supplier.getName() << " | "
-                  << supplier.getContactName() << " | "
-                  << supplier.getPhone() << " | "
-                  << supplier.getEmail() << " | "
-                  << (supplier.isActive() ? "YES" : "NO")
-                  << std::endl;
-    }
+std::vector<Supplier> InventoryService::getSuppliers() {
+    return supplierRepository.getAllSuppliers();
 }
 
-void InventoryService::addSupplier(
+ServiceResult InventoryService::addSupplier(
     const std::string& name,
     const std::string& contactName,
     const std::string& phone,
@@ -503,80 +393,42 @@ void InventoryService::addSupplier(
         supplierRepository.insertSupplier(supplier);
 
     if (!success) {
-        std::cout << "Failed to add supplier.\n";
-        return;
+        return ServiceResult::Failure("Failed to add supplier.");
     }
 
-    std::cout << "Supplier added successfully.\n";
+    return ServiceResult::Success("Supplier added successfully.");
 }
 
-void InventoryService::searchSuppliers(const std::string& keyword) {
-
-    std::vector<Supplier> suppliers =
-        supplierRepository.searchSuppliers(keyword);
-
-    if (suppliers.empty()) {
-        std::cout << "No suppliers found.\n";
-        return;
-    }
-
-    std::cout << "\nID | Name | Contact | Phone | Email | Active\n";
-    std::cout << "------------------------------------------------------------\n";
-
-    for (const Supplier& supplier : suppliers) {
-
-        std::cout << supplier.getId() << " | "
-                  << supplier.getName() << " | "
-                  << supplier.getContactName() << " | "
-                  << supplier.getPhone() << " | "
-                  << supplier.getEmail() << " | "
-                  << (supplier.isActive() ? "YES" : "NO")
-                  << std::endl;
-    }
+std::vector<Supplier> InventoryService::searchSuppliers(const std::string& keyword) {
+    return supplierRepository.searchSuppliers(keyword);
 }
 
-void InventoryService::deactivateSupplier(int supplierId) {
+ServiceResult InventoryService::deactivateSupplier(int supplierId) {
     bool isActive;
 
     if (!supplierRepository.getSupplierActiveStatus(supplierId, isActive)) {
-        std::cout << "Supplier not found.\n";
-        return;
+        return ServiceResult::Failure("Supplier not found.");
     }
 
     if (!isActive) {
-        std::cout << "Supplier is already inactive.\n";
-        return;
+        return ServiceResult::Failure("Supplier is already inactive.");
     }
 
     bool success =
         supplierRepository.deactivateSupplier(supplierId);
 
     if (!success) {
-        std::cout << "Failed to deactivate supplier.\n";
-        return;
+        return ServiceResult::Failure("Failed to deactivate supplier.");
     }
 
-    std::cout << "Supplier deactivated successfully.\n";
+    return ServiceResult::Success("Supplier deactivated successfully.");
 }
 
-void InventoryService::showCategories() {
-    std::vector<Category> categories = categoryRepository.getAllCategories();
-
-    if (categories.empty()) {
-        std::cout << "No categories found.\n";
-        return;
-    }
-
-    for (const Category& category : categories) {
-        std::cout << "ID: " << category.getCategoryId()
-                   << " | Name: " << category.getName()
-                   << " | Description: " << category.getDescription()
-                   << " | Active: " << (category.getIsActive() ? L"Yes" : L"No")
-                   << std::endl;
-    }
+std::vector<Category> InventoryService::getCategories() {
+    return categoryRepository.getAllCategories();
 }
 
-void InventoryService::addCategory(
+ServiceResult InventoryService::addCategory(
     const std::string& name,
     const std::string& description
 ) {
@@ -586,14 +438,13 @@ void InventoryService::addCategory(
         categoryRepository.addCategory(category);
 
     if (!success) {
-        std::cout << "Failed to add category.\n";
-        return;
+        return ServiceResult::Failure("Failed to add category.");
     }
 
-    std::cout << "Category added successfully.\n";
+    return ServiceResult::Success("Category added successfully.");
 }
 
-void InventoryService::updateCategory(
+ServiceResult InventoryService::updateCategory(
     int categoryId,
     const std::string& name,
     const std::string& description,
@@ -610,27 +461,24 @@ void InventoryService::updateCategory(
         categoryRepository.updateCategory(category);
 
     if (!success) {
-        std::cout << "Failed to update category.\n";
-        return;
+        return ServiceResult::Failure("Failed to update category.");
     }
 
-    std::cout << "Category updated successfully.\n";
+    return ServiceResult::Success("Category updated successfully.");
 }
 
-void InventoryService::deactivateCategory(int categoryId) {
-
+ServiceResult InventoryService::deactivateCategory(int categoryId) {
     bool success =
         categoryRepository.deactivateCategory(categoryId);
 
     if (!success) {
-        std::cout << "Failed to deactivate category.\n";
-        return;
+        return ServiceResult::Failure("Failed to deactivate category.");
     }
 
-    std::cout << "Category deactivated successfully.\n";
+    return ServiceResult::Success("Category deactivated successfully.");
 }
 
-void InventoryService::updateSupplier(
+ServiceResult InventoryService::updateSupplier(
     int supplierId,
     const std::string& name,
     const std::string& contactName,
@@ -653,9 +501,8 @@ void InventoryService::updateSupplier(
         supplierRepository.updateSupplier(supplier);
 
     if (!success) {
-        std::cout << "Failed to update supplier.\n";
-        return;
+        return ServiceResult::Failure("Failed to update supplier.");
     }
 
-    std::cout << "Supplier updated successfully.\n";
+    return ServiceResult::Success("Supplier updated successfully.");
 }

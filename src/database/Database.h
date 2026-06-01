@@ -16,7 +16,9 @@ public:
     ~Database();
 
     void connect(const std::string& configFile = "config.ini");
-
+    void beginTransaction();
+    void commitTransaction();
+    void rollbackTransaction();
     SQLHDBC getConnection() const;
 
 };

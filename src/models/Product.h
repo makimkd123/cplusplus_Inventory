@@ -66,9 +66,9 @@ public:
     int getSupplierId() const;
     int getInternalCode() const;
     ProductStatus getStatus() const;
-    int getHeight() const;
-    int getWidth() const;
-    int getDepth() const;
+    double getHeight() const;
+    double getWidth() const;
+    double getDepth() const;
 
     const std::vector<StockMovement>& getMovements() const;
 

@@ -143,15 +143,15 @@ double Product::getTax() const {
     return tax;
 }
 
-int Product::getHeight() const {
+double Product::getHeight() const {
     return height;
 }
 
-int Product::getWidth() const{
+double Product::getWidth() const{
     return width;
 }
 
-int Product::getDepth() const{
+double Product::getDepth() const{
     return depth;
 }
 

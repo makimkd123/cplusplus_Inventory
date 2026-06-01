@@ -1,8 +1,10 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "repositories/ReportRepository.h"
+#include "models/ReportModel.h"
 
 class ReportService {
 private:
@@ -11,11 +13,11 @@ private:
 public:
     ReportService(ReportRepository& repo);
 
-    void showLowStockReport();
+    std::vector<LowStockReportItem> getLowStockReport();
 
-    void showInventoryValueReport();
+    InventoryValueReport getInventoryValueReport();
 
-    void showMovementHistoryReport(
+    std::vector<MovementHistoryItem> getMovementHistoryReport(
         const std::string& startDate,
         const std::string& endDate
     );

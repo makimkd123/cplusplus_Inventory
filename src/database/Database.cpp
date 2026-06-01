@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <map>
+#include <stdexcept>
 #include "Database.h"
 #include "utils/Utils.h"
 
@@ -117,4 +118,55 @@ Database::~Database() {
 
 SQLHDBC Database::getConnection() const {
     return dbc;
+}
+
+void Database::beginTransaction() {
+    SQLRETURN ret = SQLSetConnectAttr(
+        dbc,
+        SQL_ATTR_AUTOCOMMIT,
+        (SQLPOINTER)SQL_AUTOCOMMIT_OFF,
+        0
+    );
+
+    if (!SQL_SUCCEEDED(ret)) {
+        throw std::runtime_error("Failed to begin transaction.");
+    }
+}
+
+void Database::commitTransaction() {
+    SQLRETURN ret = SQLEndTran(
+        SQL_HANDLE_DBC,
+        dbc,
+        SQL_COMMIT
+    );
+
+    if (!SQL_SUCCEEDED(ret)) {
+        throw std::runtime_error("Failed to commit transaction.");
+    }
+
+    SQLSetConnectAttr(
+        dbc,
+        SQL_ATTR_AUTOCOMMIT,
+        (SQLPOINTER)SQL_AUTOCOMMIT_ON,
+        0
+    );
+}
+
+void Database::rollbackTransaction() {
+    SQLRETURN ret = SQLEndTran(
+        SQL_HANDLE_DBC,
+        dbc,
+        SQL_ROLLBACK
+    );
+
+    SQLSetConnectAttr(
+        dbc,
+        SQL_ATTR_AUTOCOMMIT,
+        (SQLPOINTER)SQL_AUTOCOMMIT_ON,
+        0
+    );
+
+    if (!SQL_SUCCEEDED(ret)) {
+        throw std::runtime_error("Failed to rollback transaction.");
+    }
 }
