@@ -23,4 +23,7 @@
 build/
 bin/
 
+# Configuration
+config.ini
+
 OLD_NOT_NEEDED/

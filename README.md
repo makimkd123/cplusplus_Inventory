@@ -177,6 +177,7 @@ Responsible for establishing and managing SQL Server connections.
 
 ### Movement History Per Product
 ![Movement History Per Product](screenshots/MOVEMENT_HISTORY_PER_PRODUCT.png)
+
 ---
 
 # Example Workflow
@@ -221,7 +222,9 @@ This project provided practical experience with:
 # Setup
 
 1. Create a SQL Server database.
-2. Execute the schema found in `database/schema.sql`.
-3. Configure database connection settings in `config.ini`.
-4. Build the project using CMake.
-5. Launch the application.
+2. Execute `database/schema.sql`.
+3. (Optional) Execute `database/seed.sql`.
+4. Copy `config.example.ini` to `config.ini` and update server name.
+5. Update the SQL Server connection settings.
+6. Build the project using CMake.
+7. Launch the application.
