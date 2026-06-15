@@ -42,7 +42,6 @@ private:
     double width;
     double depth;
 
-    int internalCode;
     ProductStatus status;
 
     std::vector<StockMovement> movements;
@@ -64,7 +63,6 @@ public:
     int getCategory() const;
     int getSubCategory() const;
     int getSupplierId() const;
-    int getInternalCode() const;
     ProductStatus getStatus() const;
     double getHeight() const;
     double getWidth() const;
@@ -85,7 +83,6 @@ public:
     void setCategory(int category);
     void setSubCategory(int subCategory);
     void setSupplierId(int supplierId);
-    void setInternalCode(int internalCode);
     void setStatus(ProductStatus status);
     void setName(const std::string& name);
     void setBarcode(const std::string& barcode);
@@ -93,8 +90,6 @@ public:
     void addStock(double amount);
     void removeStock(double amount);
     bool isLowStock() const;
-    bool canStockIn() const;
-    bool canStockOut() const;
 };
 
 #endif

@@ -24,6 +24,7 @@ private:
     QPushButton* editButton;
     QPushButton* stockInButton;
     QPushButton* stockOutButton;
+    QPushButton* changeStatusButton;
 
     void loadProducts(const QString& keyword = "");
     int selectedProductId() const;
@@ -39,6 +40,7 @@ private slots:
     void onEditClicked();
     void onStockInClicked();
     void onStockOutClicked();
+    void onChangeStatusClicked();
 
 public:
     explicit ProductPage(

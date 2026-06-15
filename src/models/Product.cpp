@@ -17,7 +17,6 @@ Product::Product()
       name(""),
       barcode(""),
       supplierId(0),
-      internalCode(0),
       status(ProductStatus::ACTIVE)
 {
 }
@@ -131,10 +130,6 @@ int Product::getSupplierId() const {
     return supplierId;
 }
 
-int Product::getInternalCode() const {
-    return internalCode;
-}
-
 double Product::getMinimumQuantity() const {
     return minQuantity;
 }
@@ -155,8 +150,6 @@ double Product::getDepth() const{
     return depth;
 }
 
-
-
 void Product::setId(int id) {
     this->id = id;
 }
@@ -173,10 +166,6 @@ void Product::setSupplierId(int supplierId) {
     this->supplierId = supplierId;
 }
 
-void Product::setInternalCode(int internalCode) {
-    this->internalCode = internalCode;
-}
-
 void Product::setQuantity(double quantity) {
     this->quantity = quantity;
 }
@@ -187,15 +176,6 @@ ProductStatus Product::getStatus() const {
 
 void Product::setStatus(ProductStatus status) {
     this->status = status;
-}
-
-bool Product::canStockIn() const {
-    return status == ProductStatus::ACTIVE;
-}
-
-bool Product::canStockOut() const {
-    return status == ProductStatus::ACTIVE ||
-           status == ProductStatus::INACTIVE;
 }
 
 bool Product::isLowStock() const {

@@ -4,6 +4,7 @@
 #include "database/Database.h"
 #include "models/Category.h"
 #include <optional>
+#include <string>
 
 class CategoryRepository {
 private:
@@ -15,6 +16,8 @@ public:
     bool addCategory(const Category& category);
 
     std::optional<Category> getCategoryById(int categoryId);
+
+    std::vector<Category> searchCategories(const std::string& keyword);
 
     std::vector<Category> getAllCategories();
 

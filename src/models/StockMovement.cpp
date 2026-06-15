@@ -2,7 +2,7 @@
 #include <stdexcept>
 
 StockMovement::StockMovement(double amount, MovementType type, MovementReason reason)
-    : id(0), internalCode(0), reason(reason), amount(amount), type(type), date("")
+    : id(0), reason(reason), amount(amount), type(type), date("")
 {
     if(amount <= 0.0) {
         throw std::invalid_argument("Amount must be positive");
@@ -23,4 +23,8 @@ MovementReason StockMovement::getReason() const {
 
 std::string StockMovement::getDate() const {
     return date;
+}
+
+void StockMovement::setDate(const std::string& date) {
+    this->date = date;
 }

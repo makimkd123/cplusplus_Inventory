@@ -17,15 +17,16 @@ void ProductRepository::insertProduct(const std::string& name,
                                       double depth,
                                       int primaryCategoryId,
                                       int supplierId,
-                                      int subCategoryId) {
+                                      int subCategoryId,
+                                      double minimumQuantity) {
     SQLHSTMT stmt;
     SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
 
     SQLWCHAR query[] =
         L"INSERT INTO Products "
         L"(Name, Barcode, Unit, BuyingPrice, SellingPrice, Tax, Height, Width, Depth, "
-        L"PrimaryCategoryID, SupplierId, SubCategoryId) "
-        L"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+        L"PrimaryCategoryID, SupplierId, SubCategoryId, MinQuantity) "
+        L"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
 
     SQLPrepareW(stmt, query, SQL_NTS);
 
@@ -48,6 +49,7 @@ void ProductRepository::insertProduct(const std::string& name,
     SQLLEN supplierInd = 0;
     SQLLEN subCategoryInd = 0;
     SQLINTEGER nullableSubCategoryId = subCategoryId;
+    SQLLEN minimumQuantityInd = 0;
 
     if (subCategoryId == -1) {
         subCategoryInd = SQL_NULL_DATA;
@@ -88,6 +90,9 @@ void ProductRepository::insertProduct(const std::string& name,
 
     SQLBindParameter(stmt, 12, SQL_PARAM_INPUT, SQL_C_SLONG, SQL_INTEGER,
                     0, 0, &nullableSubCategoryId, 0, &subCategoryInd);
+
+    SQLBindParameter(stmt, 13, SQL_PARAM_INPUT, SQL_C_DOUBLE, SQL_DOUBLE,
+                     0, 0, &minimumQuantity, 0, &minimumQuantityInd);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -315,11 +320,7 @@ ProductRepository::getProductQuantity(int productId) {
 
     SQLHSTMT stmt;
 
-    SQLAllocHandle(
-        SQL_HANDLE_STMT,
-        database.getConnection(),
-        &stmt
-    );
+    SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
 
     SQLWCHAR query[] =
         L"SELECT Quantity "
@@ -330,18 +331,8 @@ ProductRepository::getProductQuantity(int productId) {
 
     SQLLEN productIdInd = 0;
 
-    SQLBindParameter(
-        stmt,
-        1,
-        SQL_PARAM_INPUT,
-        SQL_C_SLONG,
-        SQL_INTEGER,
-        0,
-        0,
-        &productId,
-        0,
-        &productIdInd
-    );
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_SLONG, SQL_INTEGER, 0,
+                     0, &productId, 0, &productIdInd);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -359,14 +350,7 @@ ProductRepository::getProductQuantity(int productId) {
         return std::nullopt;
     }
 
-    SQLGetData(
-        stmt,
-        1,
-        SQL_C_DOUBLE,
-        &quantity,
-        0,
-        NULL
-    );
+    SQLGetData(stmt,1, SQL_C_DOUBLE, &quantity, 0, NULL);
 
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
 
@@ -380,11 +364,7 @@ bool ProductRepository::updateProductQuantity(
 
     SQLHSTMT stmt;
 
-    SQLAllocHandle(
-        SQL_HANDLE_STMT,
-        database.getConnection(),
-        &stmt
-    );
+    SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
 
     SQLWCHAR query[] =
         L"UPDATE Products "
@@ -396,31 +376,11 @@ bool ProductRepository::updateProductQuantity(
     SQLLEN quantityInd = 0;
     SQLLEN productIdInd = 0;
 
-    SQLBindParameter(
-        stmt,
-        1,
-        SQL_PARAM_INPUT,
-        SQL_C_DOUBLE,
-        SQL_DOUBLE,
-        0,
-        0,
-        &quantityChange,
-        0,
-        &quantityInd
-    );
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_DOUBLE, SQL_DOUBLE, 0,
+                     0, &quantityChange, 0, &quantityInd);
 
-    SQLBindParameter(
-        stmt,
-        2,
-        SQL_PARAM_INPUT,
-        SQL_C_SLONG,
-        SQL_INTEGER,
-        0,
-        0,
-        &productId,
-        0,
-        &productIdInd
-    );
+    SQLBindParameter(stmt, 2, SQL_PARAM_INPUT, SQL_C_SLONG, SQL_INTEGER,
+                     0,0,&productId,0,&productIdInd);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -434,24 +394,16 @@ std::optional<Product> ProductRepository::getProductById(int productId) {
     SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
 
     SQLWCHAR query[] =
-        L"SELECT ProductID, Name, Barcode, Unit, Quantity "
+        L"SELECT ProductID, Name, Barcode, Unit, Quantity, "
+        L"BuyingPrice, SellingPrice, Tax, Height, Width, Depth, "
+        L"PrimaryCategoryId, SupplierId, SubCategoryId, MinQuantity "
         L"FROM Products "
         L"WHERE ProductID = ?;";
 
     SQLPrepareW(stmt, query, SQL_NTS);
 
-    SQLBindParameter(
-        stmt,
-        1,
-        SQL_PARAM_INPUT,
-        SQL_C_LONG,
-        SQL_INTEGER,
-        0,
-        0,
-        &productId,
-        0,
-        NULL
-    );
+    SQLBindParameter(stmt,1, SQL_PARAM_INPUT, SQL_C_LONG, SQL_INTEGER,
+                     0, 0, &productId, 0, NULL);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -460,16 +412,28 @@ std::optional<Product> ProductRepository::getProductById(int productId) {
         return std::nullopt;
     }
 
-    SQLINTEGER id;
-    SQLWCHAR name[100];
-    SQLWCHAR barcode[50];
-    SQLWCHAR unit[20];
-    double quantity;
-
     if (SQLFetch(stmt) != SQL_SUCCESS) {
         SQLFreeHandle(SQL_HANDLE_STMT, stmt);
         return std::nullopt;
     }
+
+    SQLINTEGER id;
+    SQLWCHAR name[100] = {};
+    SQLWCHAR barcode[50] = {};
+    SQLWCHAR unit[20] = {};
+    double quantity = 0.0;
+
+    double buyingPrice = 0.0;
+    double sellingPrice = 0.0;
+    double tax = 0.0;
+    double height = 0.0;
+    double width = 0.0;
+    double depth = 0.0;
+
+    SQLINTEGER categoryId = -1;
+    SQLINTEGER supplierId = -1;
+    SQLINTEGER subCategoryId = -1;
+    double minimumQuantity = 0.0;
 
     SQLGetData(stmt, 1, SQL_C_LONG, &id, 0, NULL);
     SQLGetData(stmt, 2, SQL_C_WCHAR, name, sizeof(name), NULL);
@@ -477,17 +441,43 @@ std::optional<Product> ProductRepository::getProductById(int productId) {
     SQLGetData(stmt, 4, SQL_C_WCHAR, unit, sizeof(unit), NULL);
     SQLGetData(stmt, 5, SQL_C_DOUBLE, &quantity, 0, NULL);
 
+    SQLGetData(stmt, 6, SQL_C_DOUBLE, &buyingPrice, 0, NULL);
+    SQLGetData(stmt, 7, SQL_C_DOUBLE, &sellingPrice, 0, NULL);
+    SQLGetData(stmt, 8, SQL_C_DOUBLE, &tax, 0, NULL);
+    SQLGetData(stmt, 9, SQL_C_DOUBLE, &height, 0, NULL);
+    SQLGetData(stmt, 10, SQL_C_DOUBLE, &width, 0, NULL);
+    SQLGetData(stmt, 11, SQL_C_DOUBLE, &depth, 0, NULL);
+    SQLGetData(stmt, 12, SQL_C_LONG, &categoryId, 0, NULL);
+    SQLGetData(stmt, 13, SQL_C_LONG, &supplierId, 0, NULL);
+    SQLGetData(stmt, 14, SQL_C_LONG, &subCategoryId, 0, NULL);
+    SQLGetData(stmt, 15, SQL_C_DOUBLE, &minimumQuantity, 0, NULL);
+
     Product product;
+
     product.setId(id);
     product.setName(std::string(name, name + wcslen(name)));
     product.setBarcode(std::string(barcode, barcode + wcslen(barcode)));
     product.setUnit(toUnit(unit));
     product.setQuantity(quantity);
 
+    product.setBuyingPrice(buyingPrice);
+    product.setSellingPrice(sellingPrice);
+    product.setTax(tax);
+    product.setHeight(height);
+    product.setWidth(width);
+    product.setDepth(depth);
+
+    product.setCategory(categoryId);
+    product.setSupplierId(supplierId);
+    product.setSubCategory(subCategoryId);
+    product.setMinimumQuantity(minimumQuantity);
+
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
 
     return product;
 }
+
+
 bool ProductRepository::updateMinimumQuantity(int productId, double minimumQuantity) {
     if (minimumQuantity < 0) {
         return false;
@@ -503,31 +493,11 @@ bool ProductRepository::updateMinimumQuantity(int productId, double minimumQuant
 
     SQLPrepareW(stmt, query, SQL_NTS);
 
-    SQLBindParameter(
-        stmt,
-        1,
-        SQL_PARAM_INPUT,
-        SQL_C_DOUBLE,
-        SQL_DOUBLE,
-        0,
-        0,
-        &minimumQuantity,
-        0,
-        NULL
-    );
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_DOUBLE, SQL_DOUBLE,
+                     0, 0, &minimumQuantity, 0, NULL);
 
-    SQLBindParameter(
-        stmt,
-        2,
-        SQL_PARAM_INPUT,
-        SQL_C_LONG,
-        SQL_INTEGER,
-        0,
-        0,
-        &productId,
-        0,
-        NULL
-    );
+    SQLBindParameter(stmt, 2, SQL_PARAM_INPUT, SQL_C_LONG, SQL_INTEGER,
+                     0, 0, &productId, 0, NULL);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -599,11 +569,7 @@ bool ProductRepository::updateProductStatus(
 
     SQLHSTMT stmt = NULL;
 
-    SQLAllocHandle(
-        SQL_HANDLE_STMT,
-        database.getConnection(),
-        &stmt
-    );
+    SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
 
     SQLWCHAR query[] =
         L"UPDATE Products "
@@ -614,31 +580,11 @@ bool ProductRepository::updateProductStatus(
 
     SQLLEN statusLength = SQL_NTS;
 
-    SQLBindParameter(
-        stmt,
-        1,
-        SQL_PARAM_INPUT,
-        SQL_C_WCHAR,
-        SQL_WVARCHAR,
-        statusStr.length(),
-        0,
-        (SQLPOINTER)statusStr.c_str(),
-        0,
-        &statusLength
-    );
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     statusStr.length(), 0, (SQLPOINTER)statusStr.c_str(), 0, &statusLength);
 
-    SQLBindParameter(
-        stmt,
-        2,
-        SQL_PARAM_INPUT,
-        SQL_C_LONG,
-        SQL_INTEGER,
-        0,
-        0,
-        &productId,
-        0,
-        NULL
-    );
+    SQLBindParameter(stmt, 2, SQL_PARAM_INPUT, SQL_C_LONG, SQL_INTEGER,
+                     0, 0, &productId, 0, NULL);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -646,16 +592,13 @@ bool ProductRepository::updateProductStatus(
 
     return SQL_SUCCEEDED(ret);
 }
+
 std::optional<ProductStatus>
 ProductRepository::getProductStatus(int productId) {
 
     SQLHSTMT stmt = NULL;
 
-    SQLAllocHandle(
-        SQL_HANDLE_STMT,
-        database.getConnection(),
-        &stmt
-    );
+    SQLAllocHandle(SQL_HANDLE_STMT,database.getConnection(),&stmt);
 
     SQLWCHAR query[] =
         L"SELECT Status "
@@ -664,18 +607,8 @@ ProductRepository::getProductStatus(int productId) {
 
     SQLPrepareW(stmt, query, SQL_NTS);
 
-    SQLBindParameter(
-        stmt,
-        1,
-        SQL_PARAM_INPUT,
-        SQL_C_LONG,
-        SQL_INTEGER,
-        0,
-        0,
-        &productId,
-        0,
-        NULL
-    );
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT,SQL_C_LONG, SQL_INTEGER,
+                     0, 0, &productId, 0, NULL);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -693,14 +626,7 @@ ProductRepository::getProductStatus(int productId) {
         return std::nullopt;
     }
 
-    SQLGetData(
-        stmt,
-        1,
-        SQL_C_WCHAR,
-        statusBuffer,
-        sizeof(statusBuffer),
-        NULL
-    );
+    SQLGetData(stmt,1,SQL_C_WCHAR,statusBuffer,sizeof(statusBuffer),NULL);
 
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
 
@@ -726,16 +652,8 @@ bool ProductRepository::barcodeExists(const std::string& barcode) {
 
     SQLLEN barcodeInd = SQL_NTS;
 
-    SQLBindParameter(stmt,
-                     1,
-                     SQL_PARAM_INPUT,
-                     SQL_C_WCHAR,
-                     SQL_WVARCHAR,
-                     50,
-                     0,
-                     (SQLPOINTER)wBarcode.c_str(),
-                     0,
-                     &barcodeInd);
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     50, 0, (SQLPOINTER)wBarcode.c_str(), 0, &barcodeInd);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -765,16 +683,8 @@ bool ProductRepository::productExists(int productId) {
 
     SQLLEN idInd = 0;
 
-    SQLBindParameter(stmt,
-                     1,
-                     SQL_PARAM_INPUT,
-                     SQL_C_SLONG,
-                     SQL_INTEGER,
-                     0,
-                     0,
-                     &productId,
-                     0,
-                     &idInd);
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_SLONG, SQL_INTEGER,
+                     0, 0, &productId, 0, &idInd);
 
     SQLRETURN ret = SQLExecute(stmt);
 

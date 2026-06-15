@@ -6,6 +6,7 @@
 
 ReportRepository::ReportRepository(Database& db)
     : database(db) {}
+
 std::vector<LowStockReportItem>
 ReportRepository::getLowStockProducts() {
     std::vector<LowStockReportItem> products;
@@ -16,7 +17,7 @@ ReportRepository::getLowStockProducts() {
     SQLWCHAR query[] =
         L"SELECT ProductID, Name, Quantity, MinQuantity "
         L"FROM Products "
-        L"WHERE Quantity <= MinQuantity;";
+        L"WHERE Quantity < MinQuantity;";
 
     SQLPrepareW(stmt, query, SQL_NTS);
 
@@ -54,6 +55,7 @@ ReportRepository::getLowStockProducts() {
 
     return products;
 }
+
 InventoryValueReport ReportRepository::getInventoryValue() {
     InventoryValueReport report;
 

@@ -24,6 +24,7 @@ CategoryPage::CategoryPage(
     searchBar->setPlaceholderText("Search categories...");
 
     categoryTable = new QTableWidget(this);
+    categoryTable->verticalHeader()->setVisible(false);
     categoryTable->setColumnCount(4);
 
     categoryTable->setHorizontalHeaderLabels({
@@ -70,19 +71,10 @@ CategoryPage::CategoryPage(
 void CategoryPage::loadCategories(const QString& keyword) {
     categoryTable->setRowCount(0);
 
-    auto categories = inventoryService.getCategories();
+    auto categories = inventoryService.searchCategories(keyword.toStdString());
 
     for (const auto& category : categories) {
-        if (!keyword.isEmpty()) {
-            QString name = QString::fromStdString(category.getName());
-            QString description = QString::fromStdString(category.getDescription());
-
-            if (!name.contains(keyword, Qt::CaseInsensitive) &&
-                !description.contains(keyword, Qt::CaseInsensitive)) {
-                continue;
-            }
-        }
-
+        
         int row = categoryTable->rowCount();
         categoryTable->insertRow(row);
 

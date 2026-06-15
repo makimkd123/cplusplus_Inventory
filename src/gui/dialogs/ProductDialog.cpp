@@ -55,8 +55,16 @@ void ProductDialog::setupUi() {
     unitComboBox->addItem("Pieces", static_cast<int>(Unit::PIECES));
 
     supplierComboBox = new QComboBox(this);
+    supplierComboBox->setEditable(true);
+    supplierComboBox->setInsertPolicy(QComboBox::NoInsert);
+
     primaryCategoryComboBox = new QComboBox(this);
+    primaryCategoryComboBox->setEditable(true);
+    primaryCategoryComboBox->setInsertPolicy(QComboBox::NoInsert);
+
     subCategoryComboBox = new QComboBox(this);
+    subCategoryComboBox->setEditable(true);
+    subCategoryComboBox->setInsertPolicy(QComboBox::NoInsert);
 
     buyingPriceInput = new QDoubleSpinBox(this);
     sellingPriceInput = new QDoubleSpinBox(this);
@@ -194,6 +202,7 @@ void ProductDialog::loadProductData() {
     heightInput->setValue(product->getHeight());
     widthInput->setValue(product->getWidth());
     depthInput->setValue(product->getDepth());
+    minimumQuantityInput->setValue(product->getMinimumQuantity());
 
     int unitIndex = unitComboBox->findData(
         static_cast<int>(product->getUnit())
@@ -234,17 +243,6 @@ Unit ProductDialog::selectedUnit() const {
     );
 }
 
-int ProductDialog::selectedSupplierId() const {
-    return supplierComboBox->currentData().toInt();
-}
-
-int ProductDialog::selectedPrimaryCategoryId() const {
-    return primaryCategoryComboBox->currentData().toInt();
-}
-
-int ProductDialog::selectedSubCategoryId() const {
-    return subCategoryComboBox->currentData().toInt();
-}
 
 void ProductDialog::onSaveClicked() {
     if (nameInput->text().trimmed().isEmpty()) {
@@ -254,6 +252,22 @@ void ProductDialog::onSaveClicked() {
 
     if (barcodeInput->text().trimmed().isEmpty()) {
         QMessageBox::warning(this, "Validation Error", "Barcode is required.");
+        return;
+    }
+
+    if (selectedSupplierId() == -1) {
+        QMessageBox::warning(this, "Validation Error", "Please select a valid supplier.");
+        return;
+    }
+
+    if (selectedPrimaryCategoryId() == -1) {
+        QMessageBox::warning(this, "Validation Error", "Please select a valid primary category.");
+        return;
+    }
+
+    if (selectedSubCategoryId() == -1 &&
+        subCategoryComboBox->currentText().trimmed() != "None") {
+        QMessageBox::warning(this, "Validation Error", "Please select a valid subcategory.");
         return;
     }
 
@@ -275,6 +289,30 @@ void ProductDialog::onSaveClicked() {
             selectedSupplierId(),
             selectedSubCategoryId()
         );
+
+        if (!result.success) {
+            QMessageBox::warning(
+                this,
+                "Save Product Failed",
+                QString::fromStdString(result.message)
+            );
+            return;
+        }
+
+        ServiceResult minResult =
+            inventoryService.updateMinimumQuantity(
+                *productId,
+                minimumQuantityInput->value()
+            );
+
+        if (!minResult.success) {
+            QMessageBox::warning(
+                this,
+                "Minimum Quantity Update Failed",
+                QString::fromStdString(minResult.message)
+            );
+            return;
+        }
     }
     else {
         result = inventoryService.addProduct(
@@ -289,18 +327,64 @@ void ProductDialog::onSaveClicked() {
             depthInput->value(),
             selectedPrimaryCategoryId(),
             selectedSupplierId(),
-            selectedSubCategoryId()
+            selectedSubCategoryId(),
+            minimumQuantityInput->value()
         );
-    }
 
-    if (!result.success) {
-        QMessageBox::warning(
-            this,
-            "Save Product Failed",
-            QString::fromStdString(result.message)
-        );
-        return;
+        if (!result.success) {
+            QMessageBox::warning(
+                this,
+                "Save Product Failed",
+                QString::fromStdString(result.message)
+            );
+            return;
+        }
     }
 
     accept();
+}
+
+int ProductDialog::selectedSupplierId() const {
+    QString typedText = supplierComboBox->currentText().trimmed();
+
+    int index = supplierComboBox->findText(
+        typedText,
+        Qt::MatchFixedString
+    );
+
+    if (index == -1) {
+        return -1;
+    }
+
+    return supplierComboBox->itemData(index).toInt();
+}
+
+int ProductDialog::selectedPrimaryCategoryId() const {
+    QString typedText = primaryCategoryComboBox->currentText().trimmed();
+
+    int index = primaryCategoryComboBox->findText(
+        typedText,
+        Qt::MatchFixedString
+    );
+
+    if (index == -1) {
+        return -1;
+    }
+
+    return primaryCategoryComboBox->itemData(index).toInt();
+}
+
+int ProductDialog::selectedSubCategoryId() const {
+    QString typedText = subCategoryComboBox->currentText().trimmed();
+
+    int index = subCategoryComboBox->findText(
+        typedText,
+        Qt::MatchFixedString
+    );
+
+    if (index == -1) {
+        return -1;
+    }
+
+    return subCategoryComboBox->itemData(index).toInt();
 }

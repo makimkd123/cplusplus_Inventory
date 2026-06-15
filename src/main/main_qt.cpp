@@ -1,30 +1,50 @@
 #include <QApplication>
 #include <QMessageBox>
 #include <iostream>
+#include <QFile>
+
+
 #include "database/Database.h"
 #include "services/InventoryService.h"
+#include "services/ReportService.h"
 #include "gui/MainWindow.h"
+#include "repositories/ReportRepository.h"
+#include "repositories/StockMovementRepository.h"
+
+
 
 int main(int argc, char *argv[]) {
-    std::cout << "Program started\n";
 
     QApplication app(argc, argv);
-    std::cout << "QApplication created\n";
+
+    QFile styleFile(":/styles/app.qss");
+
+    if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
+        QString style = QString::fromUtf8(styleFile.readAll());
+        app.setStyleSheet(style);
+    }
 
     Database db;
-    std::cout << "Database object created\n";
 
     db.connect("../config.ini");
-    std::cout << "Database connected\n";
 
     InventoryService inventoryService(db);
-    std::cout << "InventoryService created\n";
 
-    MainWindow window(inventoryService);
-    std::cout << "MainWindow created\n";
+    ReportRepository reportRepository(db);
+
+    StockMovementRepository stockMovementRepository(db);
+
+    ReportService reportService(
+        reportRepository,
+        stockMovementRepository
+    );
+
+    MainWindow window(
+        inventoryService,
+        reportService
+    );
 
     window.show();
-    std::cout << "Window shown\n";
 
     return app.exec();
 }

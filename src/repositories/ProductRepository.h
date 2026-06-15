@@ -25,7 +25,8 @@ public:
                                         double depth,
                                         int primaryCategoryId,
                                         int supplierId,
-                                        int subCategoryId);
+                                        int subCategoryId,
+                                        double minimumQuantity);
 
 
     std::vector<Product> searchProduct(const std::string& keyword);

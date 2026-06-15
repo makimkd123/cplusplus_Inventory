@@ -37,10 +37,6 @@ std::optional<Product> InventoryService::getProductDetails(int productId) {
     return productRepository.getProductById(productId);
 }
 
-std::vector<StockMovement> InventoryService::getStockMovements(int productId) {
-    return stockMovementRepository.getMovementsByProductId(productId);
-}
-
 ServiceResult InventoryService::addStockMovement(
     int productId,
     MovementType type,
@@ -76,6 +72,10 @@ ServiceResult InventoryService::addStockMovement(
             return ServiceResult::Failure("Cannot modify stock for blocked product.");
         }
 
+        if (*status == ProductStatus::INACTIVE && type == MovementType::STOCK_IN) {
+            return ServiceResult::Failure("Cannot stock in inactive product.");
+        }
+
         if (type == MovementType::STOCK_OUT && amount > *quantity) {
             return ServiceResult::Failure("Not enough stock available.");
         }
@@ -103,12 +103,7 @@ ServiceResult InventoryService::addStockMovement(
         }
 
         bool movementInserted =
-            stockMovementRepository.insertStockMovement(
-                productId,
-                type,
-                reason,
-                amount
-            );
+            stockMovementRepository.insertStockMovement(productId,type,reason,amount);
 
         if (!movementInserted) {
             database.rollbackTransaction();
@@ -140,7 +135,8 @@ ServiceResult InventoryService::addProduct(
     double depth,
     int primaryCategoryId,
     int supplierId,
-    int subCategoryId
+    int subCategoryId,
+    double minimumQuantity
 ) {
     try {
         Product product(name, barcode, unit);
@@ -154,6 +150,7 @@ ServiceResult InventoryService::addProduct(
         product.setCategory(primaryCategoryId);
         product.setSupplierId(supplierId);
         product.setSubCategory(subCategoryId);
+        product.setMinimumQuantity(minimumQuantity);
 
         if (productRepository.barcodeExists(barcode)) {
             return ServiceResult::Failure("Barcode already exists.");
@@ -215,7 +212,8 @@ ServiceResult InventoryService::addProduct(
             product.getDepth(),
             product.getCategory(),
             product.getSupplierId(),
-            product.getSubCategory()
+            product.getSubCategory(),
+            product.getMinimumQuantity()
         );
 
         return ServiceResult::Success("Product added successfully.");
@@ -341,10 +339,7 @@ ServiceResult InventoryService::updateMinimumQuantity(
     double minimumQuantity
 ) {
     bool success =
-        productRepository.updateMinimumQuantity(
-            productId,
-            minimumQuantity
-        );
+        productRepository.updateMinimumQuantity(productId,minimumQuantity);
 
     if (!success) {
         return ServiceResult::Failure("Failed to update minimum quantity.");
@@ -358,10 +353,7 @@ ServiceResult InventoryService::changeProductStatus(
     ProductStatus status
 ) {
     bool success =
-        productRepository.updateProductStatus(
-            productId,
-            status
-        );
+        productRepository.updateProductStatus(productId,status);
 
     if (!success) {
         return ServiceResult::Failure("Failed to update product status.");
@@ -468,6 +460,16 @@ ServiceResult InventoryService::updateCategory(
 }
 
 ServiceResult InventoryService::deactivateCategory(int categoryId) {
+    bool isActive;
+
+    if (!categoryRepository.getCategoryActiveStatus(categoryId, isActive)) {
+        return ServiceResult::Failure("Category not found.");
+    }
+
+    if (!isActive) {
+        return ServiceResult::Failure("Category is already inactive.");
+    }
+
     bool success =
         categoryRepository.deactivateCategory(categoryId);
 
@@ -505,4 +507,10 @@ ServiceResult InventoryService::updateSupplier(
     }
 
     return ServiceResult::Success("Supplier updated successfully.");
+}
+
+std::vector<Category> InventoryService::searchCategories(
+    const std::string& keyword
+) {
+    return categoryRepository.searchCategories(keyword);
 }

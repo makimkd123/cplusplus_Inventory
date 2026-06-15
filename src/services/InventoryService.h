@@ -28,7 +28,7 @@ public:
     explicit InventoryService(Database& database);
 
     std::optional<Product> getProductDetails(int productId);
-    std::vector<StockMovement> getStockMovements(int productId);
+
 
     ServiceResult addStockMovement(
         int productId,
@@ -49,7 +49,8 @@ public:
         double depth,
         int primaryCategoryId,
         int supplierId,
-        int subCategoryId
+        int subCategoryId,
+        double minimumQuantity
     );
 
     ServiceResult editProduct(
@@ -113,6 +114,8 @@ public:
         const std::string& address,
         bool isActive
     );
+
+    std::vector<Category> searchCategories(const std::string& keyword);
 };
 
 #endif

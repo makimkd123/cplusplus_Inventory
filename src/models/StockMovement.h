@@ -19,7 +19,6 @@ enum class MovementReason{
 class StockMovement {
 private:
     int id;
-    int internalCode;
     MovementReason reason;
     double amount;
     MovementType type;
@@ -27,11 +26,11 @@ private:
 
 public:
     StockMovement(double amount, MovementType type, MovementReason reason);
-
     double getAmount() const;
     MovementType getType() const;
     MovementReason getReason() const;
     std::string getDate() const;
+    void setDate(const std::string& date);
 };
 
 

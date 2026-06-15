@@ -34,6 +34,7 @@ SupplierPage::SupplierPage(
     searchBar->setPlaceholderText("Search suppliers...");
 
     supplierTable = new QTableWidget(this);
+    supplierTable->verticalHeader()->setVisible(false);
     supplierTable->setColumnCount(7);
 
     supplierTable->setHorizontalHeaderLabels({
@@ -104,7 +105,7 @@ void SupplierPage::loadSuppliers(const QString& keyword){
             supplierTable->setItem(row,3,new QTableWidgetItem(QString::fromStdString(supplier.getPhone())));            
             supplierTable->setItem(row,4,new QTableWidgetItem(QString::fromStdString(supplier.getEmail())));
             supplierTable->setItem(row,5,new QTableWidgetItem(QString::fromStdString(supplier.getAddress())));
-            supplierTable->setItem(row,6,new QTableWidgetItem(QString::number(supplier.isActive())));
+            supplierTable->setItem(row,6,new QTableWidgetItem(supplier.isActive() ? "ACTIVE" : "INACTIVE"));
 
         }
 

@@ -33,6 +33,7 @@ ProductPage::ProductPage(
     searchBar->setPlaceholderText("Search products...");
 
     productTable = new QTableWidget(this);
+    productTable->verticalHeader()->setVisible(false);
     productTable->setColumnCount(5);
 
     productTable->setHorizontalHeaderLabels({
@@ -54,7 +55,8 @@ ProductPage::ProductPage(
     editButton = new QPushButton("Edit Product", this);
     stockInButton = new QPushButton("Stock In", this);
     stockOutButton = new QPushButton("Stock Out", this);
-
+    changeStatusButton = new QPushButton("Change Status", this);
+    
     QHBoxLayout* buttonLayout = new QHBoxLayout();
     buttonLayout->addWidget(refreshButton);
     buttonLayout->addWidget(detailsButton);
@@ -62,6 +64,7 @@ ProductPage::ProductPage(
     buttonLayout->addWidget(editButton);
     buttonLayout->addWidget(stockInButton);
     buttonLayout->addWidget(stockOutButton);
+    buttonLayout->addWidget(changeStatusButton);
 
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(searchBar);
@@ -124,6 +127,13 @@ ProductPage::ProductPage(
         &QPushButton::clicked,
         this,
         &ProductPage::onStockOutClicked
+    );
+
+    connect(
+        changeStatusButton, 
+        &QPushButton::clicked,
+        this, 
+        &ProductPage::onChangeStatusClicked
     );
 
     updateButtonStates();
@@ -218,6 +228,7 @@ void ProductPage::updateButtonStates() {
     editButton->setEnabled(hasSelection);
     stockInButton->setEnabled(hasSelection);
     stockOutButton->setEnabled(hasSelection);
+    changeStatusButton->setEnabled(hasSelection);
 }
 
 int ProductPage::selectedProductId() const {
@@ -261,18 +272,28 @@ void ProductPage::onDetailsClicked() {
             return;
         }
 
-        QString details;
-
-        details += "ID: " + QString::number(product->getId()) + "\n";
-        details += "Name: " + QString::fromStdString(product->getName()) + "\n";
-        details += "Barcode: " + QString::fromStdString(product->getBarcode()) + "\n";
-        details += "Quantity: " + QString::number(product->getQuantity()) + "\n";
-        details += "Status: " + QString::fromStdWString(toString(product->getStatus()));
+        QString message =
+            "ID: " + QString::number(product->getId()) + "\n" +
+            "Name: " + QString::fromStdString(product->getName()) + "\n" +
+            "Barcode: " + QString::fromStdString(product->getBarcode()) + "\n" +
+            "Quantity: " + QString::number(product->getQuantity()) + "\n" +
+            "Unit: " + QString::fromStdString(toString(product->getUnit())) + "\n" +
+            "Buying Price: " + QString::number(product->getBuyingPrice(), 'f', 2) + "\n" +
+            "Selling Price: " + QString::number(product->getSellingPrice(), 'f', 2) + "\n" +
+            "Tax: " + QString::number(product->getTax(), 'f', 2) + "\n" +
+            "Height: " + QString::number(product->getHeight(), 'f', 2) + "\n" +
+            "Width: " + QString::number(product->getWidth(), 'f', 2) + "\n" +
+            "Depth: " + QString::number(product->getDepth(), 'f', 2) + "\n" +
+            "Supplier ID: " + QString::number(product->getSupplierId()) + "\n" +
+            "Primary Category ID: " + QString::number(product->getCategory()) + "\n" +
+            "Subcategory ID: " + QString::number(product->getSubCategory()) + "\n" +
+            "Minimum Quantity: " + QString::number(product->getMinimumQuantity(), 'f', 2) + "\n" +
+            "Status: " + QString::fromStdWString(toString(product->getStatus()));
 
         QMessageBox::information(
             this,
             "Product Details",
-            details
+            message
         );
     }
     catch (const std::exception& e) {
@@ -370,6 +391,55 @@ void ProductPage::onStockOutClicked() {
         QMessageBox::warning(this, "Stock Out Failed", QString::fromStdString(result.message));
         return;
     }
+
+    loadProducts(searchBar->text());
+}
+
+void ProductPage::onChangeStatusClicked() {
+    int productId = selectedProductId();
+
+    if (productId < 0) {
+        QMessageBox::warning(this, "No Selection", "Please select a product first.");
+        return;
+    }
+
+    QStringList statuses;
+    statuses << "ACTIVE" << "BLOCKED" << "INACTIVE";
+
+    bool ok = false;
+
+    QString selectedStatus = QInputDialog::getItem(
+        this,
+        "Change Product Status",
+        "Select new status:",
+        statuses,
+        0,
+        false,
+        &ok
+    );
+
+    if (!ok) {
+        return;
+    }
+
+    ProductStatus status = toProductStatus(selectedStatus.toStdWString());
+
+    ServiceResult result = inventoryService.changeProductStatus(productId, status);
+
+    if (!result.success) {
+        QMessageBox::warning(
+            this,
+            "Error",
+            QString::fromStdString(result.message)
+        );
+        return;
+    }
+
+    QMessageBox::information(
+        this,
+        "Success",
+        QString::fromStdString(result.message)
+    );
 
     loadProducts(searchBar->text());
 }

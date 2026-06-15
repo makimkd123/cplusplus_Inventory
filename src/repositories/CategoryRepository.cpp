@@ -64,18 +64,8 @@ CategoryRepository::getCategoryById(int categoryId) {
 
     SQLLEN idInd = 0;
 
-    SQLBindParameter(
-        stmt,
-        1,
-        SQL_PARAM_INPUT,
-        SQL_C_LONG,
-        SQL_INTEGER,
-        0,
-        0,
-        &categoryId,
-        0,
-        &idInd
-    );
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_LONG, SQL_INTEGER,
+                     0, 0, &categoryId, 0, &idInd);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -241,16 +231,8 @@ bool CategoryRepository::categoryExists(int categoryId) {
 
     SQLLEN idInd = 0;
 
-    SQLBindParameter(stmt,
-                     1,
-                     SQL_PARAM_INPUT,
-                     SQL_C_SLONG,
-                     SQL_INTEGER,
-                     0,
-                     0,
-                     &categoryId,
-                     0,
-                     &idInd);
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_SLONG, SQL_INTEGER, 0,
+                     0, &categoryId, 0,&idInd);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -304,4 +286,101 @@ bool CategoryRepository::getCategoryActiveStatus(int categoryId, bool& isActive)
 
     SQLFreeHandle(SQL_HANDLE_STMT, stmt);
     return false;
+}
+
+std::vector<Category>
+CategoryRepository::searchCategories(const std::string& keyword) {
+    std::vector<Category> categories;
+
+    if (keyword.empty()) {
+        return getAllCategories();
+    }
+
+    SQLHSTMT stmt;
+    SQLAllocHandle(SQL_HANDLE_STMT, database.getConnection(), &stmt);
+
+    SQLWCHAR query[] =
+        L"SELECT CategoryID, Name, Description, IsActive "
+        L"FROM Categories "
+        L"WHERE Name = ? "
+        L"OR Name LIKE ? "
+        L"OR Description = ? "
+        L"OR Description LIKE ? "
+        L"ORDER BY "
+        L"CASE "
+        L"WHEN Name = ? THEN 1 "
+        L"WHEN Name LIKE ? THEN 2 "
+        L"WHEN Description = ? THEN 3 "
+        L"WHEN Description LIKE ? THEN 4 "
+        L"ELSE 5 END;";
+
+    SQLPrepareW(stmt, query, SQL_NTS);
+
+    std::wstring wKeyword(keyword.begin(), keyword.end());
+    std::wstring likeKeyword = L"%" + wKeyword + L"%";
+
+    SQLLEN ind1 = SQL_NTS;
+    SQLLEN ind2 = SQL_NTS;
+    SQLLEN ind3 = SQL_NTS;
+    SQLLEN ind4 = SQL_NTS;
+    SQLLEN ind5 = SQL_NTS;
+    SQLLEN ind6 = SQL_NTS;
+    SQLLEN ind7 = SQL_NTS;
+    SQLLEN ind8 = SQL_NTS;
+
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind1);
+
+    SQLBindParameter(stmt, 2, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind2);
+
+    SQLBindParameter(stmt, 3, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     255, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind3);
+
+    SQLBindParameter(stmt, 4, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     255, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind4);
+
+    SQLBindParameter(stmt, 5, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind5);
+
+    SQLBindParameter(stmt, 6, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind6);
+
+    SQLBindParameter(stmt, 7, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     255, 0, (SQLPOINTER)wKeyword.c_str(), 0, &ind7);
+
+    SQLBindParameter(stmt, 8, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     255, 0, (SQLPOINTER)likeKeyword.c_str(), 0, &ind8);
+
+    SQLRETURN ret = SQLExecute(stmt);
+
+    if (!SQL_SUCCEEDED(ret)) {
+        SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+        return categories;
+    }
+
+    SQLINTEGER categoryId;
+    SQLWCHAR nameBuffer[100];
+    SQLWCHAR descriptionBuffer[255];
+    SQLCHAR isActiveBuffer;
+
+    while (SQLFetch(stmt) == SQL_SUCCESS) {
+        SQLGetData(stmt, 1, SQL_C_SLONG, &categoryId, 0, NULL);
+        SQLGetData(stmt, 2, SQL_C_WCHAR, nameBuffer, sizeof(nameBuffer), NULL);
+        SQLGetData(stmt, 3, SQL_C_WCHAR, descriptionBuffer, sizeof(descriptionBuffer), NULL);
+        SQLGetData(stmt, 4, SQL_C_BIT, &isActiveBuffer, 0, NULL);
+
+        Category category(
+            categoryId,
+            std::string(nameBuffer, nameBuffer + wcslen(nameBuffer)),
+            std::string(descriptionBuffer, descriptionBuffer + wcslen(descriptionBuffer)),
+            isActiveBuffer != 0
+        );
+
+        categories.push_back(category);
+    }
+
+    SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+
+    return categories;
 }

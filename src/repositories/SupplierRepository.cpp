@@ -41,59 +41,23 @@ bool SupplierRepository::insertSupplier(const Supplier& supplier) {
     SQLLEN addressInd = SQL_NTS;
     SQLLEN activeInd = 0;
 
-    SQLBindParameter(stmt, 1,
-                     SQL_PARAM_INPUT,
-                     SQL_C_WCHAR,
-                     SQL_WVARCHAR,
-                     100, 0,
-                     (SQLPOINTER)wName.c_str(),
-                     0,
-                     &nameInd);
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wName.c_str(), 0, &nameInd);
 
-    SQLBindParameter(stmt, 2,
-                     SQL_PARAM_INPUT,
-                     SQL_C_WCHAR,
-                     SQL_WVARCHAR,
-                     100, 0,
-                     (SQLPOINTER)wContactName.c_str(),
-                     0,
-                     &contactInd);
+    SQLBindParameter(stmt, 2, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wContactName.c_str(), 0, &contactInd);
 
-    SQLBindParameter(stmt, 3,
-                     SQL_PARAM_INPUT,
-                     SQL_C_WCHAR,
-                     SQL_WVARCHAR,
-                     50, 0,
-                     (SQLPOINTER)wPhone.c_str(),
-                     0,
-                     &phoneInd);
+    SQLBindParameter(stmt, 3, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     50, 0, (SQLPOINTER)wPhone.c_str(), 0, &phoneInd);
 
-    SQLBindParameter(stmt, 4,
-                     SQL_PARAM_INPUT,
-                     SQL_C_WCHAR,
-                     SQL_WVARCHAR,
-                     100, 0,
-                     (SQLPOINTER)wEmail.c_str(),
-                     0,
-                     &emailInd);
+    SQLBindParameter(stmt, 4, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     100, 0, (SQLPOINTER)wEmail.c_str(), 0, &emailInd);
 
-    SQLBindParameter(stmt, 5,
-                     SQL_PARAM_INPUT,
-                     SQL_C_WCHAR,
-                     SQL_WVARCHAR,
-                     255, 0,
-                     (SQLPOINTER)wAddress.c_str(),
-                     0,
-                     &addressInd);
+    SQLBindParameter(stmt, 5, SQL_PARAM_INPUT, SQL_C_WCHAR, SQL_WVARCHAR,
+                     255, 0, (SQLPOINTER)wAddress.c_str(), 0, &addressInd);
 
-    SQLBindParameter(stmt, 6,
-                     SQL_PARAM_INPUT,
-                     SQL_C_BIT,
-                     SQL_BIT,
-                     0, 0,
-                     &isActive,
-                     0,
-                     &activeInd);
+    SQLBindParameter(stmt, 6, SQL_PARAM_INPUT, SQL_C_BIT, SQL_BIT,
+                     0, 0, &isActive, 0, &activeInd);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -107,11 +71,7 @@ std::vector<Supplier> SupplierRepository::getAllSuppliers() {
 
     SQLHSTMT stmt;
 
-    SQLAllocHandle(
-        SQL_HANDLE_STMT,
-        database.getConnection(),
-        &stmt
-    );
+    SQLAllocHandle(SQL_HANDLE_STMT,database.getConnection(),&stmt);
 
     SQLWCHAR query[] =
         L"SELECT SupplierID, Name, ContactName, Phone, Email, Address, IsActive "
@@ -139,26 +99,19 @@ std::vector<Supplier> SupplierRepository::getAllSuppliers() {
 
     while (SQLFetch(stmt) == SQL_SUCCESS) {
 
-        SQLGetData(stmt, 1, SQL_C_SLONG,
-                   &supplierId, 0, nullptr);
+        SQLGetData(stmt, 1, SQL_C_SLONG,&supplierId, 0, nullptr);
 
-        SQLGetData(stmt, 2, SQL_C_WCHAR,
-                   nameBuffer, sizeof(nameBuffer), nullptr);
+        SQLGetData(stmt, 2, SQL_C_WCHAR,nameBuffer, sizeof(nameBuffer), nullptr);
 
-        SQLGetData(stmt, 3, SQL_C_WCHAR,
-                   contactBuffer, sizeof(contactBuffer), nullptr);
+        SQLGetData(stmt, 3, SQL_C_WCHAR,contactBuffer, sizeof(contactBuffer), nullptr);
 
-        SQLGetData(stmt, 4, SQL_C_WCHAR,
-                   phoneBuffer, sizeof(phoneBuffer), nullptr);
+        SQLGetData(stmt, 4, SQL_C_WCHAR,phoneBuffer, sizeof(phoneBuffer), nullptr);
 
-        SQLGetData(stmt, 5, SQL_C_WCHAR,
-                   emailBuffer, sizeof(emailBuffer), nullptr);
+        SQLGetData(stmt, 5, SQL_C_WCHAR,emailBuffer, sizeof(emailBuffer), nullptr);
 
-        SQLGetData(stmt, 6, SQL_C_WCHAR,
-                   addressBuffer, sizeof(addressBuffer), nullptr);
+        SQLGetData(stmt, 6, SQL_C_WCHAR,addressBuffer, sizeof(addressBuffer), nullptr);
 
-        SQLGetData(stmt, 7, SQL_C_BIT,
-                   &isActive, 0, nullptr);
+        SQLGetData(stmt, 7, SQL_C_BIT,&isActive, 0, nullptr);
 
         Supplier supplier(
             supplierId,
@@ -190,19 +143,13 @@ std::vector<Supplier> SupplierRepository::getAllSuppliers() {
 }
 
 
-
-
 bool SupplierRepository::getSupplierActiveStatus(
     int supplierId,
     bool& isActive
 ) {
     SQLHSTMT stmt;
 
-    SQLAllocHandle(
-        SQL_HANDLE_STMT,
-        database.getConnection(),
-        &stmt
-    );
+    SQLAllocHandle(SQL_HANDLE_STMT,database.getConnection(),&stmt);
 
     SQLWCHAR query[] =
         L"SELECT IsActive "
@@ -213,18 +160,8 @@ bool SupplierRepository::getSupplierActiveStatus(
 
     SQLLEN idInd = 0;
 
-    SQLBindParameter(
-        stmt,
-        1,
-        SQL_PARAM_INPUT,
-        SQL_C_SLONG,
-        SQL_INTEGER,
-        0,
-        0,
-        &supplierId,
-        0,
-        &idInd
-    );
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_SLONG, SQL_INTEGER,
+                     0, 0, &supplierId, 0, &idInd);
 
     SQLRETURN ret = SQLExecute(stmt);
 
@@ -239,14 +176,7 @@ bool SupplierRepository::getSupplierActiveStatus(
 
     if (SQLFetch(stmt) == SQL_SUCCESS) {
 
-        SQLGetData(
-            stmt,
-            1,
-            SQL_C_BIT,
-            &activeValue,
-            0,
-            nullptr
-        );
+        SQLGetData(stmt,1,SQL_C_BIT,&activeValue,0,nullptr);
 
         isActive = activeValue;
 
@@ -499,16 +429,8 @@ bool SupplierRepository::supplierExists(int supplierId) {
 
     SQLLEN idInd = 0;
 
-    SQLBindParameter(stmt,
-                     1,
-                     SQL_PARAM_INPUT,
-                     SQL_C_SLONG,
-                     SQL_INTEGER,
-                     0,
-                     0,
-                     &supplierId,
-                     0,
-                     &idInd);
+    SQLBindParameter(stmt, 1, SQL_PARAM_INPUT, SQL_C_SLONG, SQL_INTEGER,
+                     0, 0, &supplierId, 0, &idInd);
 
     SQLRETURN ret = SQLExecute(stmt);
 
